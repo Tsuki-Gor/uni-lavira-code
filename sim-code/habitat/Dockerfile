@@ -1,12 +1,14 @@
 # LAVIRA Docker image
 # Reverse-engineered from the lavira:v4 container that the authors run in production.
 #
+# From sim-code/habitat/:
 # Build:  docker build -t lavira:dev .
 # Run:    docker run --gpus all -it --rm \
-#             -v $(pwd):/workspace/lavira-code-oss \
-#             -v path/to/datasets:/workspace/lavira-code-oss/data \
+#             -v "$(pwd)/../..":/workspace/uni-lavira \
+#             -v path/to/datasets:/workspace/uni-lavira/sim-code/habitat/data \
 #             --env-file .env \
 #             lavira:dev
+# Inside the container, install the shared package: pip install --no-deps -e ../..
 #
 # Stack reproduced inside the container:
 #   - Ubuntu 22.04, CUDA 11.8 + cuDNN 8.9 (devel base, needed for habitat-sim build)
@@ -164,6 +166,6 @@ RUN mkdir -p /usr/share/glvnd/egl_vendor.d && \
     printf '{\n    "file_format_version" : "1.0.0",\n    "ICD" : {\n        "library_path" : "libEGL_nvidia.so.0"\n    }\n}\n' \
     > /usr/share/glvnd/egl_vendor.d/10_nvidia.json
 
-# Mount this repo at /workspace/lavira-code-oss when running.
-WORKDIR /workspace/lavira-code-oss
+# Mount the whole repository so the shared package is available.
+WORKDIR /workspace/uni-lavira/sim-code/habitat
 CMD ["/bin/bash"]

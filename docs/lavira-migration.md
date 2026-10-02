@@ -83,4 +83,5 @@ Habitat 客户端另作同一职责下的兼容实现，保持 `max_completion_t
 - 三次准备提交已完成，第三次为 `dccbbe6`。随后在本地分支 `codex/shared-lavira-core` 实施。
 - 第一个代码单元：三台机器人的客户端改为共同实现，旧入口继续读取各自配置。`python -m unittest discover -s tests -v` 通过；用 Git 基线原实现和 SDK 替身对照 24 组请求、重试与失败结果，另检查三个旧入口的默认配置。
 - 共享包通过无网络、无依赖安装的 wheel 构建，核对只包含 `lavira` 包、Python 下限为 3.8。客户端方法除配置构造边界外与基线语法树一致。
+- Habitat 客户端也已抽入共享包，保留独立请求与错误返回语义；额外 10 组原版对照通过。旧入口注入 Habitat logger，共享客户端可在没有 Habitat、NumPy、Pillow 导入的情况下构造请求；图像编码按需使用已有 NumPy/Pillow 依赖。
 - 以上尚不覆盖高层循环、真实 SDK/模型服务、完整仿真或真机；这些层次未验证。

@@ -7,7 +7,7 @@ name = "uni-lavira-core"
 version = "0.1.0"
 description = "Shared LaViRA algorithm components"
 requires-python = ">=3.8"
-dependencies = ["openai>=1.0"]
+dependencies = ["openai>=1.0", "numpy", "Pillow"]
 
 [tool.setuptools.packages.find]
 include = ["lavira*"]

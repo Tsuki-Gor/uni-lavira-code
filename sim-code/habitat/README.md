@@ -59,6 +59,7 @@ def phrases2classes(phrases: List[str], classes: List[str]) -> np.ndarray:
 ```shell
 pip install setuptools==58.5.3 meson-python ninja
 pip install -r requirements.txt --use-pep517 --no-build-isolation
+pip install --no-deps -e ../..  # shared LaViRA core, from sim-code/habitat/
 ```
 
 ### 5. NavDP planner
@@ -156,13 +157,13 @@ Download all of `data/` on the host first, then run a container with your GPUs, 
 ```shell
 docker run -it --gpus all \
   --env-file .env \
-  -v $(pwd):/workspace/lavira-code \
-  -v path/to/data:/workspace/lavira-code/data \
-  -w /workspace/lavira-code \
+  -v "$(pwd)/../..":/workspace/uni-lavira \
+  -v path/to/data:/workspace/uni-lavira/sim-code/habitat/data \
+  -w /workspace/uni-lavira/sim-code/habitat \
   lavira-oss:dev bash
 ```
 
-`--env-file .env` passes the six LA/VA variables into the container; `bert-base-uncased` is loaded from the mounted `data/` via `BERT_LOCAL_PATH`. Then run the eval scripts directly inside.
+Run these commands from `sim-code/habitat/`. The whole repository is mounted so the shared package is available. Inside the container, run `pip install --no-deps -e ../..` once before the eval scripts. `--env-file .env` passes the six LA/VA variables into the container; `bert-base-uncased` is loaded from the mounted `data/` via `BERT_LOCAL_PATH`.
 
 ## Visualization
 
