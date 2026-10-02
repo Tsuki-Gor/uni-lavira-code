@@ -1,7 +1,7 @@
 """Task-scoped algorithm data. Environment lifecycle belongs to the caller."""
 
 from dataclasses import dataclass, field
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
 from navigation_runtime import ExecutionReport
 
@@ -11,14 +11,20 @@ class Task:
     instruction: str
     kind: str = "vln"
     max_cycles: Optional[int] = None
+    max_steps: Optional[int] = None
+    answer_from_history: bool = True
+    id: Optional[str] = None
 
 
 @dataclass
 class TaskState:
     step: int = 1
     cycles: int = 0
-    todo_list: str = ""
+    todo_list: Union[str, List[dict], None] = ""
     visited_targets: List[dict] = field(default_factory=list)
+    history_images: List[dict] = field(default_factory=list)
+    total_waypoints: int = 0
+    total_backtracks: int = 0
 
 
 @dataclass(frozen=True)

@@ -24,21 +24,38 @@ COBOT_ANGLES = {"front": 0, "left_front": 45, "left": 90, "left_back": 135,
 
 
 class LaViRAAgent:
-    def __init__(self, reasoning, profile):
-        if profile not in ("go1", "g1", "cobot"):
+    def __init__(self, reasoning, profile, *, use_continuous_history=True,
+                 history_interval=2, target_reached_cells=15):
+        if profile not in ("go1", "g1", "cobot", "habitat"):
             raise ValueError("Unsupported navigation profile: " + profile)
         self.reasoning = reasoning
         self.profile = profile
         self.state = TaskState()
+        self.mapped_options = dict(use_continuous_history=use_continuous_history,
+                                   history_interval=history_interval,
+                                   target_reached_cells=target_reached_cells)
 
     def run(self, task, runtime, cancellation=None, on_progress=None):
         if task.kind not in ("vln", "object_nav", "eqa"):
             raise ValueError("Task not migrated to the shared driver: " + task.kind)
         if task.max_cycles is not None and task.max_cycles < 0:
             raise ValueError("max_cycles must be non-negative or None")
+        if task.max_steps is not None and task.max_steps < 0:
+            raise ValueError("max_steps must be non-negative or None")
+        if task.max_steps is not None and self.profile != "habitat":
+            raise ValueError("robot profiles use max_cycles; max_steps counts simulator actions")
         cancellation = cancellation if cancellation is not None else Event()
         cobot = self.profile == "cobot"
-        state = self.state = TaskState(step=0 if cobot else 1)
+        state = self.state = TaskState(step=0 if cobot or self.profile == "habitat" else 1)
+        mapped = None
+        if self.profile == "habitat":
+            from .reasoning.mapped_task import MappedTask
+            from .reasoning.habitat_prompts import get_prompts
+            self.reasoning.reset()
+            self.reasoning.task_type = {"vln": "VLN", "object_nav": "OBJNAV", "eqa": "EQA"}[task.kind]
+            self.reasoning.P = get_prompts(self.reasoning.task_type)
+            mapped = MappedTask(self.reasoning, task, state, **self.mapped_options)
+            runtime.terrain_hint = self.reasoning.stair
         report = None
         reason = "environment_finished"
 
@@ -51,6 +68,17 @@ class LaViRAAgent:
             if task.max_cycles is not None and state.cycles >= task.max_cycles:
                 reason = "budget_exhausted"
                 break
+            if mapped is not None:
+                if task.max_steps is not None and runtime.step >= task.max_steps:
+                    reason = "budget_exhausted"
+                    break
+                stopped = mapped.advance(runtime, progress)
+                state.step = runtime.step
+                report = mapped.last_execution
+                if stopped:
+                    reason = mapped.reason
+                    break
+                continue
             state.cycles += 1
             progress("observing")
             panorama = runtime.observe_panorama(state.step)
@@ -173,7 +201,12 @@ class LaViRAAgent:
         if self.profile == "go1":
             time.sleep(2.0)
         answer, answer_error = None, None
-        if task.kind == "eqa":
+        if mapped is not None:
+            state.step = runtime.step
+            state.todo_list = self.reasoning.todo_list
+            mapped.finish(progress)
+            answer, answer_error = mapped.last_submitted_answer, mapped.answer_error
+        elif task.kind == "eqa":
             from .reasoning.eqa import answer_question
             progress("answering")
             print_info("=== Starting EQA Question Answering Phase ===")

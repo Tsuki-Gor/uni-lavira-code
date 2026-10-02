@@ -1,6 +1,6 @@
 # 在外部程序中调用 LaViRA
 
-当前 Go1/G1/Cobot 的 VLN、ObjectNav、EQA 已接入共享任务驱动。Habitat 客户端与推理已独立，高层循环仍待迁移，进度见 [验收说明](lavira-migration.md)。
+Habitat、Go1、G1、Cobot 的 VLN、ObjectNav、EQA 已接入共享任务驱动。依赖清理与最终审核仍在进行，已验证范围见 [验收说明](lavira-migration.md)。
 
 在相应平台环境中，从仓库根目录执行 `pip install -e .`。已有平台启动命令继续使用，平台任务类负责组装共享核心。
 
@@ -55,6 +55,16 @@ Go1 的 `live_cameras` 保留前、右、左相机顺序；G1 不传该参数，
 `ExecutionReport.execution_called` 只表示调用了轨迹执行函数；`arrived=None` 表示缺少到达证据。模型停止、导航成功和物理停止分别判断，不能相互推导。
 
 Cobot 使用 `GimbalRobotRuntime` 处理全景采集、机械臂复位等待和像素导航。创建时传入机器人与本次记录目录；使用 `lavira.reasoning.cobot.LaViRANavigationAPI` 和 `profile="cobot"` 组装核心，调用时明确给出 `Task.max_cycles`（旧入口默认为 10）。`include_depth=True` 对应原 ObjectNav 的采图方式。该执行器返回旧控制器报告的 `arrived`，不增加独立的物理测量。
+
+## Habitat 任务与地图执行
+
+旧 Habitat 入口使用 `profile="habitat"` 和 `Task.max_steps`，预算按仿真动作计数。机器人使用 `max_cycles`；不能用 `max_steps` 代替它。Habitat 每次全景采集按原规则计入 12 步，可能越过预算后才在下一轮退出。EQA 未提交答案但已有航点全景时，会按原流程补答；`answer_from_history=False` 用于已有评测结果、不应再次触发补答的情况。
+
+`MappedSimulatorRuntime` 接收外部准备好的观测、位姿以及提供建图、局部规划、传感器和记录能力的 host。当前兼容 host 仍由 Habitat 评测器提供，其初始化依赖拆分尚在进行。核心不负责创建或 reset 该 host。
+
+运行时通过 `observe_panorama`、`project`、`queue_navigation`、`execute_pending` 提供采集、像素投影、规划与单步执行；另一种算法可直接调用这些能力。`MapGoal` 的 x/y 是地图格坐标，`metres_per_cell` 是米/格，`reference_frame` 标明本次地图。与地图不匹配的目标会被拒绝。历史像素目标使用 `Frame` 携带的 RGB、深度、内参、基准位姿和 `pose_heading_offset`，不会换用当前位置的 RGB 或深度。
+
+Habitat 深度标为 `normalized_0_1`，由运行时沿用原预处理转换；当前相机与地图参数仍来自现有 host。CPU 地图的位姿可能是共享引用，因此历史位姿尚不保证不可变，这项兼容例外见 [设计中的待决问题](lavira-core-design.md#待用户决定的行为问题)。
 
 ## 离线检查
 

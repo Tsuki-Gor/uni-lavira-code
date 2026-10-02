@@ -7,7 +7,7 @@ from typing import Any, Dict, Iterator, Optional, Protocol, Sequence, Tuple, Uni
 
 @dataclass(frozen=True)
 class Frame:
-    """One view. Heading is degrees to the left; depth uses metres."""
+    """One view; depth units and the capture pose/reference are explicit."""
 
     image: Any = None
     path: Optional[str] = None
@@ -17,6 +17,10 @@ class Frame:
     depth_unit: str = "m"
     width: Optional[int] = None
     height: Optional[int] = None
+    pose: Any = None  # x/y metres and heading degrees; may retain a legacy source reference
+    pose_heading_offset: Optional[float] = None  # panorama heading added when projecting the base pose
+    camera_intrinsics: Any = None
+    reference_frame: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -24,6 +28,23 @@ class Panorama:
     views: Dict[str, Frame]
     history: Sequence[str] = ()
     record_dir: Optional[str] = None
+    origin: Optional[Frame] = None
+
+
+@dataclass(frozen=True)
+class MapGoal:
+    """Map-cell position with explicit scale (metres/cell) and reference frame."""
+
+    x: float
+    y: float
+    metres_per_cell: float
+    reference_frame: str
+
+    def __post_init__(self):
+        if not all(isfinite(value) for value in (self.x, self.y, self.metres_per_cell)):
+            raise ValueError("map coordinates and scale must be finite")
+        if self.metres_per_cell <= 0 or not self.reference_frame:
+            raise ValueError("map scale must be positive and reference frame specified")
 
 
 @dataclass(frozen=True)
