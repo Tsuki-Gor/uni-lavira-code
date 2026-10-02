@@ -52,9 +52,11 @@ Environment setup, datasets, checkpoints, and run commands live in each platform
 
 The shared-core [refactoring design](unified-lavira-agent.md) is maintained in Markdown; the HTML remains available for reference.
 
-The shared core is being extracted in stages. See the [design](docs/lavira-core-design.md) and [migration status](docs/lavira-migration.md) for scope and validation. Offline core checks run from the repository root with `python -m unittest discover -s tests -v`; these checks do not connect to robots or model services.
+The first-stage shared core is implemented for Habitat and the three ground robots. See the [design](docs/lavira-core-design.md) and [migration status](docs/lavira-migration.md) for scope and validation. Offline core checks run from the repository root with `python -m unittest discover -s tests -v`; these checks do not connect to robots or model services.
 
 The in-process task interface is documented in [using the shared core](docs/lavira-usage.md). Install the existing image dependencies to run image and navigation checks; otherwise those checks report skips.
+
+For a detailed Chinese walkthrough of the refactor, algorithm flow and platform boundaries, start with the [LaViRA source guide](docs/code-guide/README.md).
 
 ## Citation
 
