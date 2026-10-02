@@ -3,6 +3,7 @@
 import importlib
 from pathlib import Path
 import sys
+import tempfile
 import types
 import unittest
 from unittest.mock import patch
@@ -12,6 +13,42 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class EnvironmentBoundaryTest(unittest.TestCase):
+    def test_legacy_task_factories_assemble_the_shared_core(self):
+        import cv2
+        from PIL import Image
+        from lavira.agent import LaViRAAgent
+        from lavira.runtime import TaskResult, TaskState
+        Image.init()
+        with tempfile.TemporaryDirectory() as directory:
+            for platform, profile in (("unitree_go1", "go1"), ("unitree_g1", "g1"),
+                                      ("cobot_magic", "cobot")):
+                with self.subTest(platform=platform), patch.dict(sys.modules):
+                    for name in list(sys.modules):
+                        if name.split(".")[0] in ("robot", "config", "utils", "tasks", "ai_client", "prompts"):
+                            del sys.modules[name]
+                    sys.modules.update({"rospy": None, "rclpy": None,
+                                        "requests": types.ModuleType("requests")})
+                    with patch.object(sys, "path", [str(ROOT / "real-world-code" / platform)] + sys.path):
+                        config = importlib.import_module("config").Config
+                        for name in ("LOG_DIR", "PANORAMA_DIR", "BBOX_DIR", "SESSION_DIR", "OUTPUT_ROOT"):
+                            setattr(config, name, directory)
+                        tasks = importlib.import_module("tasks")
+                        for kind in ("vln", "object_nav", "eqa"):
+                            with self.subTest(kind=kind), patch("lavira.clients.OpenAI") as sdk:
+                                task = tasks.TaskFactory(kind)(object(), "find chair")
+                                self.assertEqual(sdk.call_count, 2)
+                                self.assertIsInstance(task.agent, LaViRAAgent)
+                                self.assertEqual(task.agent.profile, profile)
+                                result = TaskResult("model_stop", TaskState(), answer="chair")
+                                with patch.object(LaViRAAgent, "run", return_value=result) as run:
+                                    task.run()
+                                request, runtime = run.call_args.args
+                                self.assertEqual((request.kind, request.instruction), (kind, "find chair"))
+                                self.assertIs(runtime.robot, task.robot)
+                                self.assertIs(task.result, result)
+                                task.stop_task()
+                                self.assertTrue(run.call_args.kwargs["cancellation"].is_set())
+
     def test_robot_controller_import_does_not_load_navigation_algorithm(self):
         import cv2
         from PIL import Image
