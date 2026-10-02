@@ -50,6 +50,8 @@ Habitat and the three ground robots use the shared core for `vln`, `object_nav` 
 
 Environment setup, datasets, checkpoints, and run commands live in each platform's README. Platforms retain separate environments; Habitat, Go1, G1 and Cobot also install the shared package from the repository root (`pip install -e ../..` from their platform directory).
 
+The shared-core [refactoring design](unified-lavira-agent.md) is maintained in Markdown; the HTML remains available for reference.
+
 The shared core is being extracted in stages. See the [design](docs/lavira-core-design.md) and [migration status](docs/lavira-migration.md) for scope and validation. Offline core checks run from the repository root with `python -m unittest discover -s tests -v`; these checks do not connect to robots or model services.
 
 The in-process task interface is documented in [using the shared core](docs/lavira-usage.md). Install the existing image dependencies to run image and navigation checks; otherwise those checks report skips.
