@@ -1,10 +1,8 @@
 """
 Stateless helpers for the Cobot Magic LaViRA iPlanner ObjectNav task.
 
-Pure logic only: no ROS controller state, no model clients. Heavy deps
-(``cv2``, ``numpy``, ``PIL``) are imported at module load because every helper
-needs them; nothing here requires ROS, so ``import utils`` is safe on plain
-Python.
+Physical helpers do not load the navigation algorithm. Encoding, parsing
+and TODO compatibility functions import shared LaViRA helpers only when called.
 
 Public API
 ----------
@@ -20,12 +18,8 @@ safe_json_loads       – robust JSON extraction from an LLM response
 """
 from __future__ import annotations
 
-import base64
-import io
-import json
 import math
 import os
-import re
 import time
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
@@ -87,32 +81,9 @@ def print_success(success: str) -> None:
 # ---------------------------------------------------------------------------
 
 def image_to_base64(image: Union[np.ndarray, "Image.Image"], max_dim: int = 640) -> str:
-    """Resize an image to ``max_dim`` on its long side and encode as JPEG base64.
-
-    Accepts an OpenCV BGR ``np.ndarray`` or a PIL ``Image``. Resizing uses
-    ``INTER_AREA`` for arrays and ``LANCZOS`` for PIL images, encoding at JPEG
-    quality 85 (matching the source behaviour).
-    """
-    if isinstance(image, np.ndarray):
-        h, w = image.shape[:2]
-        if max(h, w) > max_dim:
-            scale = max_dim / float(max(h, w))
-            image = cv2.resize(
-                image, (int(w * scale), int(h * scale)),
-                interpolation=cv2.INTER_AREA,
-            )
-        if image.ndim == 3 and image.shape[2] == 3:
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = Image.fromarray(image)
-    elif isinstance(image, Image.Image):
-        w, h = image.size
-        if max(h, w) > max_dim:
-            scale = max_dim / float(max(h, w))
-            image = image.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
-
-    buffered = io.BytesIO()
-    image.save(buffered, format="JPEG", quality=85)
-    return base64.b64encode(buffered.getvalue()).decode()
+    """Compatibility entrypoint for the shared algorithm helper."""
+    from lavira.reasoning._helpers import image_to_base64 as shared
+    return shared(image, max_dim)
 
 
 # ---------------------------------------------------------------------------
@@ -209,27 +180,15 @@ def pixel_to_robot_goal(
 # ---------------------------------------------------------------------------
 
 def mark_first_incomplete_task_completed(todo_list: str) -> str:
-    """Mark the first ``[ ]`` item as ``[x]`` and append ``(Completed)``.
-
-    Returns the updated TODO string (the input is not mutated). An empty input
-    returns an empty string.
-    """
-    if not todo_list:
-        return ""
-    lines = todo_list.split("\n")
-    done = False
-    result = []
-    for line in lines:
-        if not done and "[ ]" in line:
-            line = line.replace("[ ]", "[x]") + " (Completed)"
-            done = True
-        result.append(line)
-    return "\n".join(result)
+    """Compatibility entrypoint for the shared algorithm helper."""
+    from lavira.reasoning._helpers import mark_first_incomplete_task_completed as shared
+    return shared(todo_list)
 
 
 def is_all_tasks_completed(todo_list: str) -> bool:
-    """Return True when ``todo_list`` is non-empty and has no ``[ ]`` item left."""
-    return bool(todo_list) and "[ ]" not in todo_list
+    """Compatibility entrypoint for the shared algorithm helper."""
+    from lavira.reasoning._helpers import is_all_tasks_completed as shared
+    return shared(todo_list)
 
 
 # ---------------------------------------------------------------------------
@@ -298,79 +257,6 @@ def save_debug_image(
 # ---------------------------------------------------------------------------
 
 def safe_json_loads(text: str) -> Dict[str, Any]:
-    """Robust JSON extraction from an LLM response.
-
-    Falls back through three layers:
-    1. Direct ``json.loads`` parse.
-    2. Extract the first ``{...}`` block and fix common syntax errors.
-    3. Manual regex extraction of known key fields.
-    """
-    print_action("Parsing JSON response")
-
-    # Layer 1: direct parse
-    try:
-        result = json.loads(text)
-        print_success("JSON parsed successfully")
-        return result
-    except json.JSONDecodeError:
-        print_warning("Direct parsing failed, attempting to extract JSON content")
-
-    # Layer 2: extract first JSON object
-    json_match = re.search(r"\{[^{}]*\}", text, re.DOTALL)
-    if not json_match:
-        print_error("JSON parsing failed - No JSON structure found")
-        print_warning(f"[Original Content]:\n{text}")
-        return {}
-
-    json_str = json_match.group()
-
-    # Layer 3: fix common JSON errors and retry
-    try:
-        json_str = json_str.replace("'", '"')
-        json_str = re.sub(r"(\{|\,\s*)(\w+)\s*:", r'\1"\2":', json_str)
-        json_str = re.sub(r":\s*([a-zA-Z_][a-zA-Z0-9_]*)(\s*[,}])", r':"\1"\2', json_str)
-        json_str = re.sub(r":\s*(true|false|null)\s*([,}])", r":\1\2", json_str)
-        json_str = re.sub(r",\s*([}\]])", r"\1", json_str)
-        json_str = re.sub(r":\s*(\d+\.?\d*)\s*([,}])", r":\1\2", json_str)
-        json_str = re.sub(r"\[\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\]", r'["\1"]', json_str)
-
-        print_info(f"Fixed JSON: {json_str}")
-        result = json.loads(json_str)
-        print_success("JSON parsed successfully (after fix)")
-        return result
-
-    except json.JSONDecodeError as e:
-        print_error(f"JSON parsing failed: {e}")
-        print_warning(f"[Fixed JSON Content]:\n{json_str}")
-        print_warning(f"[Original Content]:\n{text}")
-
-        try:
-            description_match = (
-                re.search(r'"description"\s*:\s*"([^"]*)"', text, re.IGNORECASE)
-                or re.search(r"description[^:]*:\s*([^\n,}]*)", text, re.IGNORECASE)
-            )
-            reasoning_match = (
-                re.search(r'"reasoning"\s*:\s*"([^"]*)"', text, re.IGNORECASE)
-                or re.search(r"reasoning[^:]*:\s*([^\n,}]*)", text, re.IGNORECASE)
-            )
-            turn_match = (
-                re.search(r'"turn_direction"\s*:\s*"([^"]*)"', text, re.IGNORECASE)
-                or re.search(r"turn_direction[^:]*:\s*([^\n,}]*)", text, re.IGNORECASE)
-            )
-
-            result = {}
-            if description_match:
-                result["description"] = description_match.group(1).strip("\"' ")
-            if reasoning_match:
-                result["reasoning"] = reasoning_match.group(1).strip("\"' ")
-            if turn_match:
-                result["turn_direction"] = turn_match.group(1).strip("\"' ").lower()
-
-            if result:
-                print_success("Manual extraction of key info successful")
-                return result
-            return {}
-
-        except Exception as e2:
-            print_error(f"Manual extraction also failed: {e2}")
-            return {}
+    """Compatibility entrypoint for the shared algorithm helper."""
+    from lavira.reasoning._helpers import go1_safe_json_loads as shared
+    return shared(text)

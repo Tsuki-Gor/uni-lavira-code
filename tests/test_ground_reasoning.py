@@ -70,6 +70,10 @@ class GroundReasoningRegressionTest(unittest.TestCase):
                     }):
                         prompts = original_module(platform, "prompts.py")
                         helpers = original_module(platform, "utils.py")
+                        spec = importlib.util.spec_from_file_location(
+                            profile + "_utils", ROOT / "real-world-code" / platform / "utils.py")
+                        compatibility_helpers = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(compatibility_helpers)
                         with patch.dict(sys.modules, {"prompts": prompts, "utils": helpers}):
                             baseline = original_module(platform, "robot/navigation_api.py")
                     with patch.dict(sys.modules, {"config": None, "robot": None, "habitat": None,
@@ -84,6 +88,7 @@ class GroundReasoningRegressionTest(unittest.TestCase):
                         encoded = getattr(shared, name)(value)
                         self.assertTrue(encoded)
                         self.assertEqual(encoded, getattr(helpers, name)(value))
+                        self.assertEqual(encoded, getattr(compatibility_helpers, name)(value))
                     for reply in (
                         '{"action":"NAVIGATE","turn_direction":"left","bbox_2d":[100,200,800,900]}',
                         '```json\n{"action":"STOP","bbox_2d":[100,200,1200,1100]}\n```',
@@ -100,6 +105,12 @@ class GroundReasoningRegressionTest(unittest.TestCase):
                                  '{"reasoning": "near door", "turn_direction":"right" broken}',
                                  '{"bbox_2d":[1, 2, 3, 4],"stop":true broken}'):
                         self.assertEqual(shared.safe_json_loads(text), helpers.safe_json_loads(text))
+                        self.assertEqual(compatibility_helpers.safe_json_loads(text), helpers.safe_json_loads(text))
+                    if profile == "cobot":
+                        for todo in ("", "[ ] one [ ] two", "[x] one\n[ ] two", "[x] done"):
+                            for name in ("mark_first_incomplete_task_completed", "is_all_tasks_completed"):
+                                self.assertEqual(getattr(compatibility_helpers, name)(todo),
+                                                 getattr(helpers, name)(todo))
                     with patch.dict(sys.modules, {"config": types.SimpleNamespace(Config=config)}):
                         spec = importlib.util.spec_from_file_location(
                             profile + "_entry", ROOT / "real-world-code" / platform / "robot/navigation_api.py")
