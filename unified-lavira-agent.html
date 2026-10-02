@@ -128,7 +128,7 @@
       <h1>一套算法核心，多种环境与本体</h1>
       <p class="meta">第一阶段覆盖 Habitat、Unitree Go1、Unitree G1、Cobot Magic 的 VLN、ObjectNav、EQA。
       外部系统准备环境并提供观测、执行能力，LaViRA 完成一次导航任务；以后可以迁出环境代码，也可以替换导航算法。</p>
-      <p class="meta">本页描述目标设计，不表示代码已经迁移完成。原始方案保存在提交 <code>1c49fc2</code>；
+      <p class="meta">第一阶段代码已接入共享核心并通过离线检查；真实模型服务、完整仿真和真机尚未验证。原始方案保存在提交 <code>1c49fc2</code>；
       代码核对基线为 <code>215e7ac</code>。详细契约见 <a href="docs/lavira-core-design.md">设计说明</a>，
       交付安排见 <a href="docs/lavira-migration.md">迁移与验收说明</a>。</p>
     </section>
@@ -195,7 +195,7 @@ Habitat、ROS、Unitree SDK、传感器"]
   L -->|进度、结果| H
     </pre><div class="chart-caption">依赖从具体组装指向通用契约。LaViRA 不导入平台；环境与执行代码不接收 LA/VA 决策类型。</div></div>
     <p>先在仓库根目录建立 <code>lavira/</code> 包，旧目录保留入口和环境代码。
-    只声明正在使用的接口，不提前引入插件注册、RPC、任务队列或统一导航框架。
+    通用执行数据与适配器在 <code>navigation_runtime/</code>，可随环境代码迁出；只声明正在使用的接口，不提前引入插件注册、RPC 或任务队列。
     算法专用配置保留在核心；相机、控制和规划参数仍由外部提供。</p>
 
     <h2 id="unified-loop">5. 一次导航任务怎样运行</h2>
@@ -217,7 +217,7 @@ flowchart TD
   D -->|立即结束的兼容分支| K
   H -->|达到预算或环境结束| K
   K --> R["返回结束原因、答案及执行证据"]
-    </pre><div class="chart-caption">取消在已有安全检查点处理。此图展示共享流程及必要分支，不表示各平台都执行停止确认或回溯。</div></div>
+    </pre><div class="chart-caption">取消在已有任务检查点处理。此图展示共享流程及必要分支，不表示各平台都执行停止确认或回溯。</div></div>
     <p>只有一个高层任务驱动器。导航执行服务仍可有高频控制循环，模型重试仍可有自己的循环；这些不是重复的 LaViRA pipeline。
     VLN 和 ObjectNav 使用任务对应的提示与结束规则，EQA 增加问答收尾，不能另起一套高层导航循环。</p>
 
@@ -231,12 +231,14 @@ flowchart TD
       <tr><td>取消</td><td>请求取消、任务循环已响应、底层停止已确认是不同事实。第一阶段保留现有阻塞段与收尾规则，不能承诺即时制动。</td></tr>
       <tr><td>生命周期</td><td>外部创建、reset 和关闭环境；每次完整任务调用持有独立算法状态。入口不应暗中复用上个任务的记忆。</td></tr>
     </tbody></table>
-    <div class="warn">部分旧执行器会在动作执行时读取实时深度。迁移时要明确保留这一旧语义；改成绑定采集帧可能改变真实目标，不能混在纯重构中。</div>
+    <div class="warn">部分旧执行器会在动作执行时读取实时深度，Habitat 的 CPU 历史位姿也可能保留共享引用。
+    本次保留这些兼容语义；绑定采集帧或冻结位姿会改变目标和轨迹，需要另行决定。详见设计说明中的待决问题。</div>
 
     <h2 id="habitat">7. Habitat 的迁移边界</h2>
     <p>从 <a href="sim-code/habitat/vlnce_baselines/agent.py">VLMReasoningAgent</a> 提取请求、解析、TODO 与记忆，
     从 <a href="sim-code/habitat/vlnce_baselines/ZS_Evaluator_mp.py">评测器 rollout</a> 分出高层任务推进。
-    环境 reset、数据集、地图、底层动作与指标仍归外部；采集全景产生的 12 次动作及其预算也必须记录。</p>
+    环境 reset、数据集、地图、底层动作与指标仍归外部；采集全景产生的 12 次动作及其预算也必须记录。
+    <a href="sim-code/habitat/vlnce_baselines/habitat_environment.py">HabitatEnvironment</a> 提供独立环境能力，旧评测器只组装它和 LaViRA。</p>
     <ul>
       <li>保留“停止信号 → 转向/VA → 最后接近 → 新全景二次确认”的顺序。</li>
       <li>回溯重规划使用旧视图、深度和位姿；重访记忆仍保存来源关系。</li>
@@ -274,7 +276,7 @@ flowchart TD
     <ol>
       <li>忽略本地索引、缓存和环境文件：已提交 <code>ab901b1</code>。</li>
       <li>保存原始 HTML：已提交 <code>1c49fc2</code>。</li>
-      <li>本页修订与补充设计、迁移说明：单独文档提交，先于代码修改。</li>
+      <li>本页修订与补充设计、迁移说明：已单独提交 <code>dccbbe6</code>，先于代码修改。</li>
       <li>先共享客户端、保留两类请求语义，并建立离线基线。</li>
       <li>建立通用观测/执行契约和共享任务驱动，逐端接入 VLN；同时保留原入口。</li>
       <li>接入 ObjectNav、EQA，删除重复高层循环，完成依赖方向和行为回归检查。</li>

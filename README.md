@@ -23,8 +23,8 @@ Uni-LaViRA is a **training-free** framework for **unified embodied navigation**:
 
 | Path | Description |
 |------|-------------|
-| `lavira/` | Shared LaViRA clients/reasoning and task driver; Go1/G1/Cobot navigation uses the shared loop. |
-| `navigation_runtime/` | Algorithm-neutral observations, goals and camera/iPlanner execution. |
+| `lavira/` | Shared LaViRA clients, reasoning and task driver for Habitat, Go1, G1 and Cobot. |
+| `navigation_runtime/` | Algorithm-neutral observations, goals and camera, gimbal and mapped-simulator execution. |
 | `sim-code/habitat/` | Habitat-based simulation for VLN + ObjectNav + EQA. |
 | `sim-code/airsim/`  | AirSim / TravelUAV-based simulation for aerial VLN. |
 | `real-world-code/cobot_magic/` | Agilex Cobot Magic deployment. |
@@ -41,7 +41,7 @@ Uni-LaViRA is a **training-free** framework for **unified embodied navigation**:
 | EQA        | `sim-code/habitat` | cobot_magic · unitree_g1 · unitree_go1 · self_built_uav |
 | Aerial VLN | `sim-code/airsim`  | self_built_uav |
 
-Each ground robot runs all of `vln` / `object_nav` / `eqa` / `interact` from one shared pipeline and a single LA/VA model; only the instruction differs.
+Habitat and the three ground robots use the shared core for `vln`, `object_nav` and `eqa`, preserving their task prompts and platform policies. `interact` remains the platform's web/voice entrypoint.
 
 ## Quickstart
 

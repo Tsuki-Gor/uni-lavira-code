@@ -1,6 +1,6 @@
 # 在外部程序中调用 LaViRA
 
-Habitat、Go1、G1、Cobot 的 VLN、ObjectNav、EQA 已接入共享任务驱动。依赖清理与最终审核仍在进行，已验证范围见 [验收说明](lavira-migration.md)。
+Habitat、Go1、G1、Cobot 的 VLN、ObjectNav、EQA 已接入共享任务驱动，并完成离线对照与独立审核。真实模型服务、完整仿真和真机尚未验证，具体证据见 [验收说明](lavira-migration.md)。
 
 在相应平台环境中，从仓库根目录执行 `pip install -e .`。已有平台启动命令继续使用，平台任务类负责组装共享核心。
 
