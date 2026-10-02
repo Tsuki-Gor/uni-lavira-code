@@ -7,11 +7,24 @@ _planning/
 .codex/
 .claude/
 
+# Local code index
+.codegraph/
+
 # Python
 __pycache__/
 *.py[cod]
 *.egg-info/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# Local environment configuration
 .env
+.env.*
+!.env.example
 
 # Logs / outputs
 *.log
