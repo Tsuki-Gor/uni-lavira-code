@@ -10,4 +10,4 @@ requires-python = ">=3.8"
 dependencies = ["openai>=1.0", "numpy", "Pillow", "opencv-python"]
 
 [tool.setuptools.packages.find]
-include = ["lavira*"]
+include = ["lavira*", "navigation_runtime*"]
