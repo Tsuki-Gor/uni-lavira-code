@@ -23,7 +23,7 @@ Uni-LaViRA is a **training-free** framework for **unified embodied navigation**:
 
 | Path | Description |
 |------|-------------|
-| `lavira/` | Shared LaViRA clients/reasoning and task driver; Go1/G1 navigation currently uses the shared loop. |
+| `lavira/` | Shared LaViRA clients/reasoning and task driver; Go1/G1/Cobot navigation uses the shared loop. |
 | `navigation_runtime/` | Algorithm-neutral observations, goals and camera/iPlanner execution. |
 | `sim-code/habitat/` | Habitat-based simulation for VLN + ObjectNav + EQA. |
 | `sim-code/airsim/`  | AirSim / TravelUAV-based simulation for aerial VLN. |

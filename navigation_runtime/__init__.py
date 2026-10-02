@@ -15,12 +15,15 @@ class Frame:
     heading_degrees: float = 0.0
     color_order: str = "BGR"
     depth_unit: str = "m"
+    width: Optional[int] = None
+    height: Optional[int] = None
 
 
 @dataclass(frozen=True)
 class Panorama:
     views: Dict[str, Frame]
     history: Sequence[str] = ()
+    record_dir: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -65,5 +68,7 @@ class NavigationRuntime(Protocol):
     def turn(self, degrees: float) -> None: ...
 
     def observe_current(self) -> Optional[Frame]: ...
+
+    def finish_observation(self) -> None: ...
 
     def navigate(self, goal: Union[PixelGoal, RelativeGoal], step: int) -> ExecutionReport: ...

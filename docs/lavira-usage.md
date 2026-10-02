@@ -1,6 +1,6 @@
 # 在外部程序中调用 LaViRA
 
-当前已接通 Go1/G1 的共享导航循环，支持 VLN 和沿用相同导航行为的 ObjectNav。Habitat、Cobot 的模型客户端已共享，其他任务迁移进度见 [验收说明](lavira-migration.md)。
+当前已接通 Go1/G1/Cobot 的共享导航循环，支持 VLN 和沿用相同导航行为的 ObjectNav。Habitat 客户端已共享，高层循环及各端 EQA 收尾仍待迁移，进度见 [验收说明](lavira-migration.md)。
 
 在相应平台环境中，从仓库根目录执行 `pip install -e .`。已有平台启动命令继续使用，平台任务类负责组装共享核心。
 
@@ -48,6 +48,8 @@ print(result.reason, result.cancellation_requested, result.last_execution)
 `CameraRobotRuntime` 保留原控制器执行时读取实时深度的做法。`PixelGoal.view` 标识目标来自哪帧，但当前兼容执行尚不保证用该帧深度投影。不能把它描述成已经解决传感器同步问题。
 
 `ExecutionReport.execution_called` 只表示调用了轨迹执行函数；`arrived=None` 表示缺少到达证据。模型停止、导航成功和物理停止分别判断，不能相互推导。
+
+Cobot 使用 `GimbalRobotRuntime` 处理全景采集、机械臂复位等待和像素导航。创建时传入机器人与本次记录目录；使用 `lavira.reasoning.cobot.LaViRANavigationAPI` 和 `profile="cobot"` 组装核心，调用时明确给出 `Task.max_cycles`（旧入口默认为 10）。`include_depth=True` 对应原 ObjectNav 的采图方式。该执行器返回旧控制器报告的 `arrived`，不增加独立的物理测量。
 
 ## 离线检查
 

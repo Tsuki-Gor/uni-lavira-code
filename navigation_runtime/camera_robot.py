@@ -54,6 +54,9 @@ class CameraRobotRuntime:
         data = self.robot.direction_images[self.robot.current_direction]
         return Frame(image=data["rgb"], depth=data["depth"])
 
+    def finish_observation(self):
+        """This camera runtime has no pending scan operation."""
+
     def navigate(self, goal, step):
         target_pixel = None
         if isinstance(goal, PixelGoal):
