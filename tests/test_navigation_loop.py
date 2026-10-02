@@ -5,6 +5,7 @@ import copy
 import importlib
 import importlib.util
 import io
+import json
 from pathlib import Path
 import sys
 import tempfile
@@ -17,6 +18,36 @@ from test_ground_reasoning import ROOT, original_module
 
 
 class NavigationLoopTest(unittest.TestCase):
+    def test_eqa_and_object_nav_use_the_shared_complete_task(self):
+        from lavira.runtime import TaskResult, TaskState
+        self.assertTrue(hasattr(TaskResult("model_stop", TaskState()), "answer"),
+                        "EQA answer missing from complete-task result")
+        try:
+            import cv2
+            import numpy as np
+            from PIL import Image
+        except ImportError:
+            self.skipTest("requires existing image dependencies")
+        Image.init()
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):
+            config = types.SimpleNamespace(PANORAMA_DIR=directory, SAFE_DISTANCE=1.2, LOG_DIR=directory)
+            image = np.arange(480 * 640 * 3, dtype=np.uint8).reshape(480, 640, 3)
+            step_dir = Path(directory) / "step1"
+            step_dir.mkdir()
+            for angle in (0, 90, 180, 270):
+                cv2.imwrite(str(step_dir / ("view_" + str(angle) + ".png")), image)
+            for platform in ("unitree_go1", "unitree_g1"):
+                helpers = original_module(platform, "utils.py")
+                for task_kind in ("object_nav", "eqa"):
+                    cases = ("stop_no_bbox", "cancel_during_la")
+                    if task_kind == "eqa":
+                        cases += ("qa_failure", "qa_missing_views", "qa_raw")
+                    for case in cases:
+                        with self.subTest(platform=platform, task=task_kind, case=case):
+                            expected = self.run_task(platform, True, case, config, helpers, image, np, task_kind)
+                            actual = self.run_task(platform, False, case, config, helpers, image, np, task_kind)
+                            self.assertEqual(actual, expected)
+
     def test_complete_task_state_progress_and_cancel_are_separate_from_arrival(self):
         try:
             from lavira.agent import LaViRAAgent
@@ -68,6 +99,18 @@ class NavigationLoopTest(unittest.TestCase):
         self.assertTrue(cancelled.cancellation_requested)
         self.assertIsNone(cancelled.physical_stop_confirmed)
         self.assertEqual(limited.reason, "budget_exhausted")
+        agent.reasoning.client = types.SimpleNamespace(
+            generate_with_la=lambda *args, **kwargs: ('{"answer":"red"}', {}))
+        runtime.observe_views = lambda: iter(())
+        progress.clear()
+        with patch("time.sleep"), contextlib.redirect_stdout(io.StringIO()):
+            answered = agent.run(Task("What color?", kind="eqa"), runtime,
+                                 cancellation=event, on_progress=progress.append)
+        self.assertEqual(answered.reason, "cancelled")
+        self.assertTrue(answered.cancellation_requested)
+        self.assertEqual(answered.answer, "red")
+        self.assertIsNone(answered.answer_error)
+        self.assertEqual([p.stage for p in progress], ["started", "answering", "finished"])
         for make_goal in (lambda: RelativeGoal(float("nan"), 0),
                           lambda: PixelGoal(Frame(), 0, float("inf"))):
             with self.assertRaises(ValueError):
@@ -113,13 +156,17 @@ class NavigationLoopTest(unittest.TestCase):
                         actual = self.run_task(platform, False, case, config, helpers, image, np)
                         self.assertEqual(actual, expected)
 
-    def run_task(self, platform, original, case, config, helpers, image, np):
+    def run_task(self, platform, original, case, config, helpers, image, np, task_kind="vln"):
         trace = []
         owner = []
+        if task_kind == "eqa":
+            answer_file = Path(config.LOG_DIR) / "final_eqa_result.json"
+            if answer_file.exists():
+                answer_file.unlink()
 
         class API:
             def __init__(self, client):
-                pass
+                self.client = client
 
             def generate_initial_todo(self, instruction, frames):
                 trace.append(("todo", instruction, frames))
@@ -153,7 +200,14 @@ class NavigationLoopTest(unittest.TestCase):
             def __init__(self):
                 self.direction_images = {0: {"rgb": image, "depth": np.ones((480, 640))}}
                 self.camera_data = {"front": {"fx": 500, "cx": 320}}
+                self.rgb_image = None if case == "qa_missing_views" else image
+                for index, name in enumerate(("camera1", "camera2", "camera4")):
+                    self.camera_data[name] = {"rgb_image": None if case == "qa_missing_views"
+                                             else np.roll(image, index, axis=0)}
                 self.planner_client = types.SimpleNamespace(get_plan=self.get_plan)
+
+            def update_camera_data(self):
+                trace.append(("refresh_qa",))
 
             def capture_all_directions(self, step):
                 trace.append(("panorama", step))
@@ -187,12 +241,23 @@ class NavigationLoopTest(unittest.TestCase):
             def execute_trajectory(self, trajectory, goal_local):
                 trace.append(("execute", trajectory, goal_local))
 
+        class Client:
+            def generate_with_la(self, messages, **kwargs):
+                trace.append(("qa", copy.deepcopy(messages), kwargs))
+                if case == "qa_failure":
+                    raise RuntimeError("offline QA failure")
+                return ("raw answer" if case == "qa_raw" else '{"answer":"red"}'), {}
+
+        package = types.ModuleType("tasks")
+        package.__path__ = [str(ROOT / "real-world-code" / platform / "tasks")]
+        package.register_task = lambda name: lambda cls: cls
         replacements = {
             "config": types.SimpleNamespace(Config=config),
             "utils": helpers,
-            "ai_client": types.SimpleNamespace(LaViRAVisionClient=lambda: None),
+            "ai_client": types.SimpleNamespace(LaViRAVisionClient=Client),
             "robot.navigation_api": types.SimpleNamespace(LaViRANavigationAPI=API),
-            "tasks": types.SimpleNamespace(register_task=lambda name: lambda cls: cls),
+            "tasks": package,
+            "colorama": types.SimpleNamespace(Fore=helpers.Fore, init=lambda **kw: None),
         }
         with patch.dict(sys.modules, replacements), \
                 patch("time.sleep", side_effect=lambda seconds: trace.append(("sleep", seconds))), \
@@ -204,14 +269,34 @@ class NavigationLoopTest(unittest.TestCase):
                     platform + "_task", ROOT / "real-world-code" / platform / "tasks/vln.py")
                 module = importlib.util.module_from_spec(spec)
                 spec.loader.exec_module(module)
-            task = module.VLNTask(Robot(), "find the chair")
+            cls = module.VLNTask
+            if task_kind != "vln":
+                sys.modules["tasks.vln"] = module
+                if original:
+                    entry = original_module(platform, "tasks/" + task_kind + ".py", package="tasks")
+                else:
+                    spec = importlib.util.spec_from_file_location(
+                        "tasks." + task_kind, ROOT / "real-world-code" / platform / "tasks" / (task_kind + ".py"))
+                    entry = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(entry)
+                cls = entry.EQATask if task_kind == "eqa" else entry.ObjectNavTask
+            task = cls(Robot(), "find the chair")
             owner.append(task)
             task.run()
+            if task_kind == "eqa":
+                saved = json.loads(answer_file.read_text()) if answer_file.exists() else None
+                self.assertEqual(saved, None if case == "qa_failure" else {
+                    "question": "find the chair", "answer": "raw answer" if case == "qa_raw" else "red"})
+                trace.append(("answer_file", saved))
             if not original:
                 self.assertIsNone(task.result.physical_stop_confirmed)
                 if task.result.last_execution is not None:
                     self.assertIsNone(task.result.last_execution.arrived)
                 self.assertEqual(task.result.cancellation_requested, case == "cancel_during_la")
+                if task_kind == "eqa":
+                    self.assertEqual(task.result.answer, None if case == "qa_failure" else
+                                     "raw answer" if case == "qa_raw" else "red")
+                    self.assertEqual(task.result.answer_error, "offline QA failure" if case == "qa_failure" else None)
             return trace, task.current_step, task.todo_list
 
 

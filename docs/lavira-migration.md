@@ -86,8 +86,9 @@ Habitat 客户端另作同一职责下的兼容实现，保持 `max_completion_t
 - Habitat 客户端也已抽入共享包，保留独立请求与错误返回语义；额外 10 组原版对照通过。旧入口注入 Habitat logger，共享客户端可在没有 Habitat、NumPy、Pillow 导入的情况下构造请求；图像编码按需使用已有 NumPy/Pillow 依赖。
 - 三台机器人的 prompt、LA/VA 消息构建、图像编码与解析已移入 `lavira/reasoning/`，平台 API 仅注入配置。三组兼容模块没有任务循环。
 - 图像与推理对照在隔离环境运行，使用仓库已有版本：OpenAI 2.2.0、NumPy 1.23.5、Pillow 10.4.0、OpenCV headless 4.10.0.84。比较实际编码后的图像载荷、历史筛选、prompt、bbox 结果与失败回退，未访问模型或机器人。
-- Go1/G1 的 VLN 入口已接入一个 `LaViRAAgent.run` 循环。其 ObjectNav 原本继承 VLN，也经过该入口；任务专门验收和 EQA 收尾迁移仍未完成。
+- Go1/G1 的 VLN 入口已接入一个 `LaViRAAgent.run` 循环。其 ObjectNav 原本继承 VLN，现在显式传入任务类型，行为不变。
 - `navigation_runtime.camera_robot.CameraRobotRuntime` 集中两端相机/iPlanner 执行，不导入 LaViRA。16 条原版动作轨迹对照通过，包含停止前最后接近、缺失 bbox、规划失败、采图失败与推理期间取消。另检查完整任务状态隔离、进度、取消请求和替代算法使用执行能力。
 - Cobot 的 VLN/ObjectNav 已合并为同一核心任务循环。18 条原版对照通过，覆盖七方向、机械臂线程、立即停止、VA STOP、缺失图像/bbox、取消、预算与 TODO 完成。环境代码使用独立 `GimbalRobotRuntime`。
 - Habitat 推理与三类任务 prompt 已移入 `lavira/reasoning/habitat.py` 和 `habitat_prompts/`；旧入口只读取环境配置并注入模型、日志与 bbox 绘图回调。24 组原版对照覆盖历史图、TODO、导航/回溯、VA、停止确认、EQA 回答和解析失败，实际图像编码、请求参数、结果与状态均一致。prompt 文件保持字节相同；除构造和依赖注入外的方法语法树一致。
-- 当前根目录离线测试为 7 组，通过且无跳过。Habitat 高层循环、EQA 任务收尾尚未切换；真实模型服务、完整仿真和真机均未验证。
+- Go1/G1/Cobot 的 EQA 问答已在同一完整任务调用中执行，结果增加答案和问答错误；平台负责原有答案文件保存。新增 26 条入口对照（Go1/G1 的 ObjectNav/EQA 共 14 条，Cobot EQA 12 条），检查请求图像、文本、参数、答案、采图/取消时序及文件保存；另外检查取消结果仍可携带旧收尾产生的答案。
+- 当前根目录离线测试为 8 组，通过且无跳过。Habitat 高层循环仍未切换；真实模型服务、完整仿真和真机均未验证。

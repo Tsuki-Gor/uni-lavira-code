@@ -13,6 +13,8 @@ from navigation_runtime.camera_robot import CameraRobotRuntime
 
 @register_task("vln")
 class VLNTask:
+    task_kind = "vln"
+
     def __init__(self, robot, instruction):
         self.robot = robot
         self.instruction = instruction
@@ -23,7 +25,8 @@ class VLNTask:
         self.runtime = CameraRobotRuntime(
             robot, Config.PANORAMA_DIR,
             directions=(("front", 0, 0), ("right", 90, -90), ("left", 270, 90)),
-            safety_distance=1.5, require_panorama_success=True, recapture_delay=0.5)
+            safety_distance=1.5, require_panorama_success=True, recapture_delay=0.5,
+            live_cameras=(("front", "camera1"), ("right", "camera2"), ("left", "camera4")))
         self.current_step = 1
         self.todo_list = ""
         self.visited_targets = []
@@ -39,7 +42,7 @@ class VLNTask:
         self.is_task_running = True
         self._cancellation.clear()
         try:
-            self.result = self.agent.run(Task(self.instruction), self.runtime,
+            self.result = self.agent.run(Task(self.instruction, self.task_kind), self.runtime,
                                          cancellation=self._cancellation)
         finally:
             self.current_step = self.agent.state.step

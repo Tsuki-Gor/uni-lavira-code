@@ -9,4 +9,4 @@ from .vln import VLNTask
 
 @register_task("object_nav")
 class ObjectNavTask(VLNTask):
-    pass
+    task_kind = "object_nav"

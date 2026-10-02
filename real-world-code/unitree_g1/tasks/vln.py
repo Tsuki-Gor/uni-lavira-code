@@ -13,6 +13,8 @@ from navigation_runtime.camera_robot import CameraRobotRuntime
 
 @register_task("vln")
 class VLNTask:
+    task_kind = "vln"
+
     def __init__(self, robot, instruction):
         self.robot = robot
         self.instruction = instruction
@@ -39,7 +41,7 @@ class VLNTask:
         self.is_task_running = True
         self._cancellation.clear()
         try:
-            self.result = self.agent.run(Task(self.instruction), self.runtime,
+            self.result = self.agent.run(Task(self.instruction, self.task_kind), self.runtime,
                                          cancellation=self._cancellation)
         finally:
             self.current_step = self.agent.state.step

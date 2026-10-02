@@ -112,3 +112,22 @@ Your PRIMARY goal is to locate and draw a bounding box around: **{current_target
     "stop_reasoning": "Reason if stopping"
 }}
 """
+
+
+# Original EQA request text; whitespace is part of the model input.
+EQA_PROMPT = """
+            You are a robot agent. You have navigated to the destination based on the instruction.
+            Now, answer the user's question based on what you see RIGHT NOW.
+
+            User Question: "{instruction}"
+
+            Below are the views from your current location.
+            Analyze them carefully to answer the question.
+            """
+EQA_RESPONSE_FORMAT = """
+            Response format (JSON):
+            {
+                "reasoning": "I see...",
+                "answer": "Your direct answer"
+            }
+            """

@@ -11,13 +11,14 @@ from . import ExecutionReport, Frame, Panorama, PixelGoal, RelativeGoal
 
 class CameraRobotRuntime:
     def __init__(self, robot, panorama_dir, directions, safety_distance,
-                 require_panorama_success=False, recapture_delay=None):
+                 require_panorama_success=False, recapture_delay=None, live_cameras=()):
         self.robot = robot
         self.panorama_dir = panorama_dir
         self.directions = directions
         self.safety_distance = safety_distance
         self.require_panorama_success = require_panorama_success
         self.recapture_delay = recapture_delay
+        self.live_cameras = live_cameras
 
     @property
     def running(self):
@@ -56,6 +57,15 @@ class CameraRobotRuntime:
 
     def finish_observation(self):
         """This camera runtime has no pending scan operation."""
+
+    def observe_views(self):
+        """Read fixed camera views in host-specified order without rotating."""
+        if self.live_cameras:
+            for name, camera in self.live_cameras:
+                yield name, Frame(image=self.robot.camera_data[camera]["rgb_image"])
+        else:
+            self.robot.update_camera_data()
+            yield "front", Frame(image=self.robot.rgb_image)
 
     def navigate(self, goal, step):
         target_pixel = None

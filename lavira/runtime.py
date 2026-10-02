@@ -1,7 +1,7 @@
 """Task-scoped algorithm data. Environment lifecycle belongs to the caller."""
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from navigation_runtime import ExecutionReport
 
@@ -35,3 +35,5 @@ class TaskResult:
     cancellation_requested: bool = False
     last_execution: Optional[ExecutionReport] = None
     physical_stop_confirmed: Optional[bool] = None
+    answer: Any = None
+    answer_error: Optional[str] = None

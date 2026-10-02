@@ -74,3 +74,11 @@ class GimbalRobotRuntime:
             raise TypeError("gimbal navigation requires a PixelGoal")
         arrived = self.robot.navigate_dynamic(goal.u, goal.v, cycle_dir=self.cycle_dir)
         return ExecutionReport(execution_called=True, arrived=arrived)
+
+    def observe_views(self):
+        """Read the existing fixed cameras; do not move the scanning arm."""
+        with self.robot.image_lock:
+            frames = [(name, getattr(self.robot, "current_" + name + "_rgb", None))
+                      for name in ("front", "left", "right")]
+        for name, image in frames:
+            yield name, Frame(image=image)

@@ -1,4 +1,4 @@
-"""Cobot VLN/ObjectNav share a driver without changing scan/arm/motion order."""
+"""Cobot tasks share a driver without changing scan/arm/motion/QA order."""
 
 import contextlib
 import copy
@@ -15,7 +15,7 @@ from test_ground_reasoning import ROOT, original_module
 
 
 class CobotLoopTest(unittest.TestCase):
-    def test_vln_and_object_nav_match_original_cycles(self):
+    def test_vln_object_nav_and_eqa_match_original_cycles(self):
         self.assertTrue((ROOT / "navigation_runtime/gimbal_robot.py").exists(), "gimbal runtime missing")
         try:
             import cv2
@@ -29,9 +29,12 @@ class CobotLoopTest(unittest.TestCase):
             with patch.dict(sys.modules, {"config": types.SimpleNamespace(Config=config)}):
                 helpers = original_module("cobot_magic", "utils.py")
             image = np.zeros((10, 14, 3), dtype=np.uint8)
-            for task in ("vln", "object_nav"):
-                for case in ("la_stop", "arrived", "not_arrived", "va_stop", "missing_bbox",
-                             "missing_view", "unknown_direction", "cancel_during_la", "empty_todo"):
+            for task in ("vln", "object_nav", "eqa"):
+                cases = ("la_stop", "arrived", "not_arrived", "va_stop", "missing_bbox",
+                         "missing_view", "unknown_direction", "cancel_during_la", "empty_todo")
+                if task == "eqa":
+                    cases += ("qa_failure", "qa_missing_views", "qa_raw")
+                for case in cases:
                     with self.subTest(task=task, case=case):
                         expected = self.run_task(True, task, case, config, helpers, image)
                         actual = self.run_task(False, task, case, config, helpers, image)
@@ -57,13 +60,13 @@ class CobotLoopTest(unittest.TestCase):
 
         class API:
             def __init__(self, client):
-                pass
+                self.client = client
 
             def decide_direction(self, frames, instruction, visited, todo, **kwargs):
                 trace.append(("la", frames, instruction, copy.deepcopy(visited), todo, kwargs))
                 if case == "cancel_during_la":
                     owner[0].stop_task()
-                return {"action": "STOP" if case == "la_stop" else "NAVIGATE",
+                return {"action": "STOP" if case == "la_stop" or case.startswith("qa_") else "NAVIGATE",
                         "updated_todo_list": "" if case == "empty_todo" else "[ ] chair",
                         "turn_direction": "unknown" if case == "unknown_direction" else "left_front",
                         "expected_landmark": "chair", "progress_analysis": "near"}
@@ -78,7 +81,9 @@ class CobotLoopTest(unittest.TestCase):
         class Robot:
             image_lock = contextlib.nullcontext()
             rgb_width, rgb_height = 14, 10
-            current_front_rgb = None if case == "missing_view" else image
+            current_front_rgb = None if case in ("missing_view", "qa_missing_views") else image
+            current_left_rgb = None if case == "qa_missing_views" else image[::-1].copy()
+            current_right_rgb = None if case == "qa_missing_views" else image[:, ::-1].copy()
             current_front_depth = None
 
             def collect_panoramic_images(self):
@@ -92,24 +97,38 @@ class CobotLoopTest(unittest.TestCase):
                 trace.append(("navigate", u, v, kwargs))
                 return case not in ("not_arrived", "empty_todo")
 
+        class Client:
+            def generate_with_la(self, messages, **kwargs):
+                trace.append(("qa", copy.deepcopy(messages), kwargs))
+                if case == "qa_failure":
+                    raise RuntimeError("offline QA failure")
+                return ("raw answer" if case == "qa_raw" else '{"answer":"red"}'), {}
+
         package = types.ModuleType("tasks")
         package.__path__ = [str(ROOT / "real-world-code/cobot_magic/tasks")]
         package.register_task = lambda name: lambda cls: cls
         replacements = {
             "tasks": package, "config": types.SimpleNamespace(Config=config), "utils": helpers,
-            "ai_client": types.SimpleNamespace(LaViRAVisionClient=lambda: None),
+            "ai_client": types.SimpleNamespace(LaViRAVisionClient=Client),
             "robot.navigation_api": types.SimpleNamespace(LaViRANavigationAPI=API),
         }
         with patch.dict(sys.modules, replacements), \
                 patch("time.sleep", side_effect=lambda seconds: trace.append(("sleep", seconds))):
             if original:
-                module = original_module("cobot_magic", "tasks/" + task_name + ".py")
+                if task_name == "eqa":
+                    sys.modules["tasks.vln"] = original_module("cobot_magic", "tasks/vln.py")
+                module = original_module("cobot_magic", "tasks/" + task_name + ".py", package="tasks")
             else:
                 module = importlib.import_module("tasks." + task_name)
-            cls = module.VLNTask if task_name == "vln" else module.ObjectNavTask
+            cls = (module.VLNTask if task_name == "vln" else
+                   module.EQATask if task_name == "eqa" else module.ObjectNavTask)
             task = cls(Robot(), "chair", max_cycles=2)
             owner.append(task)
             task.run()
+            if not original and task_name == "eqa":
+                self.assertEqual(task.result.answer, None if case == "qa_failure" else
+                                 "raw answer" if case == "qa_raw" else "red")
+                self.assertEqual(task.result.answer_error, "offline QA failure" if case == "qa_failure" else None)
             return trace, task.current_todo_list, task.visited_targets
 
 

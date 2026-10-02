@@ -140,3 +140,22 @@ def get_tactical_eyes_prompt(
         "stop_reasoning": "Only fill this if stopping."
     }}
     """
+
+
+# Original EQA request text; whitespace is part of the model input.
+EQA_PROMPT = """
+            You are a humanoid robot agent. You have navigated to the destination based on the instruction.
+            Now, answer the user's question based on what you see RIGHT NOW.
+
+            User Question: "{instruction}"
+
+            Below is the view from your current location.
+            Analyze it carefully to answer the question.
+            """
+EQA_RESPONSE_FORMAT = """
+            Response format (JSON):
+            {
+                "reasoning": "I see...",
+                "answer": "Your direct answer"
+            }
+            """

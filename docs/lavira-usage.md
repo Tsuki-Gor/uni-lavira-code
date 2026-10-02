@@ -1,6 +1,6 @@
 # 在外部程序中调用 LaViRA
 
-当前已接通 Go1/G1/Cobot 的共享导航循环，支持 VLN 和沿用相同导航行为的 ObjectNav。Habitat 客户端已共享，高层循环及各端 EQA 收尾仍待迁移，进度见 [验收说明](lavira-migration.md)。
+当前 Go1/G1/Cobot 的 VLN、ObjectNav、EQA 已接入共享任务驱动。Habitat 客户端与推理已独立，高层循环仍待迁移，进度见 [验收说明](lavira-migration.md)。
 
 在相应平台环境中，从仓库根目录执行 `pip install -e .`。已有平台启动命令继续使用，平台任务类负责组装共享核心。
 
@@ -24,6 +24,7 @@ runtime = CameraRobotRuntime(
     safety_distance=1.5,
     require_panorama_success=True,
     recapture_delay=0.5,
+    live_cameras=(("front", "camera1"), ("right", "camera2"), ("left", "camera4")),
 )
 reasoning = LaViRANavigationAPI(LaViRAVisionClient(Config), config=Config)
 agent = LaViRAAgent(reasoning, profile="go1")
@@ -40,6 +41,10 @@ print(result.reason, result.cancellation_requested, result.last_execution)
 其他线程可调用 `cancel.set()` 请求取消；任务在原有循环检查点响应。该操作不表示控制器已制动，也不打断已有模型或轨迹阻塞调用。`physical_stop_confirmed` 没有证据时为 `None`。
 
 `max_cycles` 默认不额外限制 Go1/G1 的循环次数，符合原入口；外部可在 `Task` 中明确设置非负预算。每次直接调用 `agent.run` 创建新的任务状态。外部仍负责保护运行时，避免多个任务同时控制同一个机器人。
+
+问答任务使用 `Task("椅子是什么颜色？", kind="eqa")`。导航按原规则结束后，核心调用运行时的 `observe_views()` 取得最终视图，向 LA 提问；`result.answer` 保存原解析得到的答案，`result.answer_error` 记录问答模型或解析异常。`reason` 仍描述导航结束原因，因此取消请求和答案可以同时存在，这是旧流程的行为。采图或导航本身抛出的异常仍按原路径传播。
+
+Go1 的 `live_cameras` 保留前、右、左相机顺序；G1 不传该参数，刷新前相机。Cobot 在图像锁内取前、左、右的原有帧引用。问答不新增全景转动。核心不保存答案文件；Go1/G1 旧入口仍保存 `final_eqa_result.json`，外部 Agent 可自行处理结果。
 
 ## 让其他算法使用导航能力
 

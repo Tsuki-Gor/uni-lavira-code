@@ -9,6 +9,7 @@ from .runtime import Progress, TaskResult, TaskState
 from .reasoning._helpers import (
     go1_img_to_base64, g1_img_to_base64, image_to_base64,
     mark_first_incomplete_task_completed, is_all_tasks_completed,
+    print_info,
 )
 
 
@@ -31,7 +32,7 @@ class LaViRAAgent:
         self.state = TaskState()
 
     def run(self, task, runtime, cancellation=None, on_progress=None):
-        if task.kind not in ("vln", "object_nav"):
+        if task.kind not in ("vln", "object_nav", "eqa"):
             raise ValueError("Task not migrated to the shared driver: " + task.kind)
         if task.max_cycles is not None and task.max_cycles < 0:
             raise ValueError("max_cycles must be non-negative or None")
@@ -171,8 +172,18 @@ class LaViRAAgent:
 
         if self.profile == "go1":
             time.sleep(2.0)
+        answer, answer_error = None, None
+        if task.kind == "eqa":
+            from .reasoning.eqa import answer_question
+            progress("answering")
+            print_info("=== Starting EQA Question Answering Phase ===")
+            # Compatibility: QA still runs after navigation cancellation.
+            time.sleep(1.0)
+            answer, answer_error = answer_question(
+                self.reasoning.client, self.profile, task.instruction, runtime.observe_views())
         progress("finished")
-        return TaskResult(reason, state, cancellation.is_set(), report)
+        return TaskResult(reason, state, cancellation.is_set(), report,
+                          answer=answer, answer_error=answer_error)
 
     def _panorama_frames(self, panorama):
         if self.profile == "cobot":

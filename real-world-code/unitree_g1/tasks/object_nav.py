@@ -11,4 +11,4 @@ from .vln import VLNTask
 class ObjectNavTask(VLNTask):
     """Object Navigation Task - VLN where the instruction is 'Find X'."""
 
-    pass
+    task_kind = "object_nav"

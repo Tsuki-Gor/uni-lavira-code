@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from math import isfinite
-from typing import Any, Dict, Optional, Protocol, Sequence, Union
+from typing import Any, Dict, Iterator, Optional, Protocol, Sequence, Tuple, Union
 
 
 @dataclass(frozen=True)
@@ -68,6 +68,8 @@ class NavigationRuntime(Protocol):
     def turn(self, degrees: float) -> None: ...
 
     def observe_current(self) -> Optional[Frame]: ...
+
+    def observe_views(self) -> Iterator[Tuple[str, Frame]]: ...
 
     def finish_observation(self) -> None: ...
 

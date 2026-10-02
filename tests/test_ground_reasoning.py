@@ -17,11 +17,13 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def original_module(platform, filename):
+def original_module(platform, filename, package=None):
     source = subprocess.check_output([
         "git", "show", "215e7ac:real-world-code/{}/{}".format(platform, filename),
     ], cwd=ROOT, text=True)
     module = types.ModuleType("original_" + filename.replace("/", "_").replace(".", "_"))
+    if package is not None:
+        module.__package__ = package
     exec(compile(source, filename, "exec"), module.__dict__)
     return module
 
