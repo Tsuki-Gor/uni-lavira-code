@@ -89,4 +89,5 @@ Habitat 客户端另作同一职责下的兼容实现，保持 `max_completion_t
 - Go1/G1 的 VLN 入口已接入一个 `LaViRAAgent.run` 循环。其 ObjectNav 原本继承 VLN，也经过该入口；任务专门验收和 EQA 收尾迁移仍未完成。
 - `navigation_runtime.camera_robot.CameraRobotRuntime` 集中两端相机/iPlanner 执行，不导入 LaViRA。16 条原版动作轨迹对照通过，包含停止前最后接近、缺失 bbox、规划失败、采图失败与推理期间取消。另检查完整任务状态隔离、进度、取消请求和替代算法使用执行能力。
 - Cobot 的 VLN/ObjectNav 已合并为同一核心任务循环。18 条原版对照通过，覆盖七方向、机械臂线程、立即停止、VA STOP、缺失图像/bbox、取消、预算与 TODO 完成。环境代码使用独立 `GimbalRobotRuntime`。
-- 当前根目录离线测试为 6 组，通过且无跳过。Habitat 高层循环、EQA 收尾尚未切换；真实模型服务、完整仿真和真机均未验证。
+- Habitat 推理与三类任务 prompt 已移入 `lavira/reasoning/habitat.py` 和 `habitat_prompts/`；旧入口只读取环境配置并注入模型、日志与 bbox 绘图回调。24 组原版对照覆盖历史图、TODO、导航/回溯、VA、停止确认、EQA 回答和解析失败，实际图像编码、请求参数、结果与状态均一致。prompt 文件保持字节相同；除构造和依赖注入外的方法语法树一致。
+- 当前根目录离线测试为 7 组，通过且无跳过。Habitat 高层循环、EQA 任务收尾尚未切换；真实模型服务、完整仿真和真机均未验证。
