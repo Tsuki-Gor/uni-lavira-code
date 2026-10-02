@@ -84,4 +84,6 @@ Habitat 客户端另作同一职责下的兼容实现，保持 `max_completion_t
 - 第一个代码单元：三台机器人的客户端改为共同实现，旧入口继续读取各自配置。`python -m unittest discover -s tests -v` 通过；用 Git 基线原实现和 SDK 替身对照 24 组请求、重试与失败结果，另检查三个旧入口的默认配置。
 - 共享包通过无网络、无依赖安装的 wheel 构建，核对只包含 `lavira` 包、Python 下限为 3.8。客户端方法除配置构造边界外与基线语法树一致。
 - Habitat 客户端也已抽入共享包，保留独立请求与错误返回语义；额外 10 组原版对照通过。旧入口注入 Habitat logger，共享客户端可在没有 Habitat、NumPy、Pillow 导入的情况下构造请求；图像编码按需使用已有 NumPy/Pillow 依赖。
+- 三台机器人的 prompt、LA/VA 消息构建、图像编码与解析已移入 `lavira/reasoning/`，平台 API 仅注入配置。三组兼容模块没有任务循环；现有任务循环仍待后续接入。
+- 图像与推理对照在隔离环境运行，使用仓库已有版本：OpenAI 2.2.0、NumPy 1.23.5、Pillow 10.4.0、OpenCV headless 4.10.0.84。比较实际编码后的图像载荷、历史筛选、prompt、bbox 结果与失败回退，未访问模型或机器人。
 - 以上尚不覆盖高层循环、真实 SDK/模型服务、完整仿真或真机；这些层次未验证。
