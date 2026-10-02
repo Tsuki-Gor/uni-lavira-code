@@ -6,8 +6,6 @@ integrated vision-navigation controller used by the web / demo entry point.
 """
 from robot.arm_controller import AutomatedController
 from robot.iplanner_client import IPlannerClient
-from robot.nav_controller import IntegratedVisionNavController
-from robot.navigation_api import LaViRANavigationAPI
 from robot.robot_controller import RobotController
 
 __all__ = [
@@ -17,3 +15,16 @@ __all__ = [
     "LaViRANavigationAPI",
     "IntegratedVisionNavController",
 ]
+
+
+def __getattr__(name):
+    # Importing hardware alone must not load the navigation algorithm.
+    from importlib import import_module
+
+    modules = {"LaViRANavigationAPI": ".navigation_api",
+               "IntegratedVisionNavController": ".nav_controller"}
+    if name not in modules:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(modules[name], __name__), name)
+    globals()[name] = value
+    return value
