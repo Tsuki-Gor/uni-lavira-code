@@ -40,6 +40,7 @@ unitree_g1/
 ```bash
 conda create -n unitree_g1 python=3.10 && conda activate unitree_g1
 pip install -r requirements.txt          # or: bash scripts/setup_g1_env.sh
+pip install -e ../..                     # shared LaViRA core, from this directory
 ```
 
 Also required:

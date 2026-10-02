@@ -23,6 +23,7 @@ Uni-LaViRA is a **training-free** framework for **unified embodied navigation**:
 
 | Path | Description |
 |------|-------------|
+| `lavira/` | Shared LaViRA algorithm package; currently used by the three ground robot model clients. |
 | `sim-code/habitat/` | Habitat-based simulation for VLN + ObjectNav + EQA. |
 | `sim-code/airsim/`  | AirSim / TravelUAV-based simulation for aerial VLN. |
 | `real-world-code/cobot_magic/` | Agilex Cobot Magic deployment. |
@@ -46,7 +47,9 @@ Each ground robot runs all of `vln` / `object_nav` / `eqa` / `interact` from one
 - **Run simulation evaluation** → `sim-code/habitat/README.md` (indoor) or `sim-code/airsim/README.md` (aerial).
 - **Deploy on a real robot** → the README inside the matching `real-world-code/<robot>/` folder.
 
-Each subfolder is self-contained: environment setup, datasets, checkpoints, and run commands all live in its own README. The simulation and real-world trees use separate environments and do not share a single install.
+Environment setup, datasets, checkpoints, and run commands live in each platform's README. Platforms retain separate environments; Go1, G1 and Cobot also install the shared package from the repository root (`pip install -e ../..` from their platform directory).
+
+The shared core is being extracted in stages. See the [design](docs/lavira-core-design.md) and [migration status](docs/lavira-migration.md) for scope and validation. Offline core checks run from the repository root with `python -m unittest discover -s tests -v`; these checks do not connect to robots or model services.
 
 ## Citation
 

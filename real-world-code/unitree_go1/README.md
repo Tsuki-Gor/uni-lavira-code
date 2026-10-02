@@ -37,6 +37,7 @@ unitree_go1/
 ```bash
 conda create -n unitree_go1 python=3.10 && conda activate unitree_go1
 pip install -r requirements.txt
+pip install -e ../..                     # shared LaViRA core, from this directory
 ```
 
 Also required:
