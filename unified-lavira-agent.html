@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>统一 Lavira Agent 循环 · 重构方案</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --bg-nav: #f0ece3;
+      --bg-card: #ffffff;
+      --bg-code: #f3f1eb;
+      --bg-chart: #fbfaf6;
+      --line: #ddd6c8;
+      --text: #1f2430;
+      --muted: #667085;
+      --heading: #161b26;
+      --accent: #0d7a5f;
+      --accent-2: #1d4e89;
+      --warn: #8a5a12;
+      --mono: "IBM Plex Mono", "SF Mono", ui-monospace, monospace;
+      --sans: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      line-height: 1.65;
+    }
+    a { color: var(--accent-2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
+    nav {
+      position: sticky; top: 0; height: 100vh; overflow: auto;
+      border-right: 1px solid var(--line); background: var(--bg-nav); padding: 28px 20px;
+    }
+    nav h1 { font-size: 15px; margin: 0 0 6px; letter-spacing: 0.02em; color: var(--heading); }
+    nav p { color: var(--muted); font-size: 12px; margin: 0 0 22px; }
+    nav a {
+      display: block; color: var(--muted); font-size: 13px;
+      padding: 6px 8px; border-radius: 6px;
+    }
+    nav a:hover { background: #e7e1d4; color: var(--heading); text-decoration: none; }
+    main { padding: 48px 56px 96px; max-width: 1100px; }
+    h2 { font-size: 28px; margin: 56px 0 16px; letter-spacing: -0.02em; color: var(--heading); }
+    h2:first-of-type { margin-top: 0; }
+    h3 { font-size: 20px; margin: 36px 0 12px; color: var(--heading); }
+    h4 { font-size: 16px; margin: 24px 0 8px; color: #2a3344; }
+    p, li { color: #2c3440; }
+    .hero {
+      background: linear-gradient(160deg, #eef6f2 0%, #f7f3e8 60%, #eef2f8 100%);
+      border: 1px solid var(--line); border-radius: 16px; padding: 32px 36px; margin-bottom: 36px;
+    }
+    .hero h1 { margin: 0 0 10px; font-size: 34px; letter-spacing: -0.03em; color: var(--heading); }
+    .hero .meta { color: var(--muted); font-size: 14px; }
+    .badge {
+      display: inline-block; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+      padding: 3px 8px; border-radius: 999px; border: 1px solid #c9ddd4; color: var(--accent);
+      background: #eef7f3; margin-right: 6px;
+    }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .card {
+      background: var(--bg-card); border: 1px solid var(--line);
+      border-radius: 12px; padding: 16px 18px;
+    }
+    .card h4 { margin-top: 0; }
+    .card code, p code, li code {
+      font-family: var(--mono); font-size: 12.5px;
+      background: var(--bg-code); padding: 1px 6px; border-radius: 4px; color: #1d4e89;
+    }
+    pre {
+      background: var(--bg-code); border: 1px solid var(--line); border-radius: 10px;
+      padding: 16px 18px; overflow: auto; font-family: var(--mono); font-size: 12.5px;
+      color: #243044; line-height: 1.55;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin: 12px 0 24px; background: var(--bg-card); }
+    th, td { border-bottom: 1px solid var(--line); padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; font-size: 12px; letter-spacing: 0.04em; background: #faf8f3; }
+    .chart {
+      background: var(--bg-chart); border: 1px solid var(--line); border-radius: 14px;
+      padding: 18px 10px 8px; margin: 16px 0 28px; overflow-x: auto;
+    }
+    .chart-caption {
+      color: var(--muted); font-size: 12px; padding: 0 12px 10px;
+    }
+    .note {
+      border-left: 3px solid var(--accent); background: #eef7f3;
+      padding: 12px 14px; border-radius: 0 10px 10px 0; color: #24483d; margin: 16px 0;
+    }
+    .warn {
+      border-left: 3px solid #c48a2a; background: #fbf4e6;
+      padding: 12px 14px; border-radius: 0 10px 10px 0; color: #5c4214; margin: 16px 0;
+    }
+    .path { font-family: var(--mono); font-size: 12px; color: #1d4e89; }
+    footer { color: var(--muted); font-size: 12px; margin-top: 64px; }
+    @media (max-width: 980px) {
+      .wrap { grid-template-columns: 1fr; }
+      nav { position: relative; height: auto; }
+      main { padding: 28px 20px 64px; }
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <h1>统一 Lavira Agent</h1>
+    <p>重构方案 · 地面室内第一期</p>
+    <a href="#overview">1. 问题与目标</a>
+    <a href="#inventory">2. 现状盘点</a>
+    <a href="#target">3. 目标架构</a>
+    <a href="#unified-loop">4. 统一循环详图</a>
+    <a href="#adapter">5. Adapter 协议</a>
+    <a href="#habitat">6. Habitat 现循环</a>
+    <a href="#go1">7. Go1 现循环</a>
+    <a href="#mapping">8. 如何接到本体</a>
+    <a href="#extract">9. 抽什么 / 不抽什么</a>
+    <a href="#migrate">10. 迁移顺序</a>
+  </nav>
+
+  <main>
+    <section class="hero">
+      <div>
+        <span class="badge">Library</span>
+        <span class="badge">HabitatSim</span>
+        <span class="badge">Go1 / G1 / Cobot</span>
+        <span class="badge">Python 3.8</span>
+      </div>
+      <h1>统一、独立的 Lavira Agent 循环</h1>
+      <p class="meta">
+        第一期只覆盖室内地面：HabitatSim 与三台真机（Unitree Go1、Unitree G1、Agilex Cobot Magic）。
+        把四套重复的 LA → 转向 → VA bbox → 规划执行收成一个无仿真/真机依赖的 <code>lavira/</code> 包。
+        空中仿真与无人机真机这一版先不纳入。
+      </p>
+    </section>
+
+    <h2 id="overview">1. 问题与目标</h2>
+    <p>
+      当前仓库没有共享包。Habitat 评测和每台地面真机都各自复制了一套 Lavira Agent 循环。
+      哲学相同——<strong>语言决策（LA）→ 转向对向 → 视觉落地（VA bbox）→ 本体执行</strong>——但全景采集、坐标系和规划器绑在各自目录里。
+    </p>
+    <div class="grid-2">
+      <div class="card">
+        <h4>要独立出去的</h4>
+        <ul>
+          <li>LA / VA HTTP 客户端</li>
+          <li>Prompt 组装与 JSON 解析</li>
+          <li>TODO / 历史图 / visited waypoint 记忆</li>
+          <li>宏观状态机（唯一 Loop）</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>必须留在本体的</h4>
+        <ul>
+          <li>Habitat 建图、FMM、SPL/NDTW</li>
+          <li>iPlanner / ROS / Unitree SDK</li>
+          <li>云台扫全景、Web UI</li>
+          <li>各端评测与部署入口</li>
+        </ul>
+      </div>
+    </div>
+    <div class="note">
+      形态已定：<strong>独立 Python 包，进程内 import</strong>，不做 RPC Agent 服务。
+      第一期接口按 Habitat + 三台地面真机设计；切流按 Habitat → Go1 → G1 → Cobot。
+    </div>
+    <div class="warn">
+      这一版明确不覆盖 AirSim / TravelUAV 和自研无人机。它们的 VA 输出（距离/高度）和 3D 航点执行与地面室内循环差异过大，后续单独再挂。
+    </div>
+
+    <h2 id="inventory">2. 现状盘点：四套独立循环</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>平台</th>
+          <th>主循环文件</th>
+          <th>全景</th>
+          <th>LA 输出</th>
+          <th>VA 输出</th>
+          <th>执行</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>HabitatSim</td>
+          <td><span class="path">sim-code/habitat/vlnce_baselines/ZS_Evaluator_mp.py</span> + <span class="path">agent.py</span></td>
+          <td>转 12 次 → 4 向</td>
+          <td>forward/left/right/behind · backtrack · stop</td>
+          <td>bbox → 地图坐标</td>
+          <td>FMM / NavDP 离散动作</td>
+        </tr>
+        <tr>
+          <td>Go1</td>
+          <td><span class="path">real-world-code/unitree_go1/tasks/vln.py</span></td>
+          <td>4 相机，LA 只用 3 向</td>
+          <td>front/left/right · STOP</td>
+          <td>bbox → 机体系 2D</td>
+          <td>iPlanner HTTP + 截断 1.5m</td>
+        </tr>
+        <tr>
+          <td>G1</td>
+          <td><span class="path">real-world-code/unitree_g1/tasks/vln.py</span></td>
+          <td>4 向含 behind</td>
+          <td>含 behind，stop 为 bool</td>
+          <td>bbox 底边中心</td>
+          <td>同 Go1，iPlanner HTTP</td>
+        </tr>
+        <tr>
+          <td>Cobot Magic</td>
+          <td><span class="path">real-world-code/cobot_magic/tasks/vln.py</span></td>
+          <td>云台扫 8 槽</td>
+          <td>8 向转角</td>
+          <td>bbox</td>
+          <td>进程内 iPlanner + cmd_vel</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="target">3. 目标架构</h2>
+    <p>
+      根目录新增轻量包 <code>lavira/</code>：只依赖 numpy / openai 或 httpx / Pillow，Python 3.8 兼容。
+      核心包零 Habitat、零 ROS。平台 adapter 继续住在各自目录。
+    </p>
+    <div class="chart">
+      <div class="chart-caption">目标组件关系：Loop 只认识 Brain、Memory 和 Adapter 协议</div>
+      <pre class="mermaid">
+flowchart TB
+    subgraph pkg ["lavira 独立包"]
+      Loop[LaviraAgentLoop]
+      Brain[LA_VA_Brain]
+      Mem[EpisodeMemory]
+      Client[Shared_LA_VA_Client]
+      Prompts[PromptRegistry]
+    end
+
+    subgraph proto ["协议 不含平台实现"]
+      Adapter[EmbodimentAdapter]
+    end
+
+    subgraph bodies ["各进程自己的本体"]
+      Hab[HabitatAdapter]
+      Go1A[Go1Adapter]
+      G1A[G1Adapter]
+      Cobot[CobotAdapter]
+    end
+
+    Loop --> Brain
+    Loop --> Mem
+    Loop --> Adapter
+    Brain --> Client
+    Brain --> Prompts
+    Adapter --> Hab
+    Adapter --> Go1A
+    Adapter --> G1A
+    Adapter --> Cobot
+      </pre>
+    </div>
+
+    <h4>建议包结构</h4>
+    <pre>lavira/
+  client.py          # 统一 LA/VA HTTP 客户端
+  types.py           # Observation / StrategicDecision / TacticalDecision / Goal / StepResult
+  memory.py          # TODO、history images、visited waypoints
+  prompts/           # 按 task 注册，允许本体覆盖视角描述
+  brain.py           # language_action / vision_action / generate_todo / double_check_stop
+  loop.py            # 唯一宏观循环
+  adapter.py         # EmbodimentAdapter Protocol</pre>
+
+    <h2 id="unified-loop">4. 统一循环：详细代码逻辑</h2>
+    <p>
+      这是重构后 Habitat 与三台地面真机共用的宏观状态机。本体差异全部沉到 <code>adapter.*</code>。
+      四端都走同一条 Indoor 路径：LA 出离散方向，VA 出 bbox，adapter 把 bbox 投到坐标再执行。
+    </p>
+    <div class="chart">
+      <div class="chart-caption">LaviraAgentLoop.run_episode — 统一宏观循环</div>
+      <pre class="mermaid">
+flowchart TD
+    Start[run_episode instruction] --> Reset["adapter.reset episode"]
+    Reset --> InitMem[memory.clear TODO history waypoints]
+    InitMem --> MaybeTodo{profile.need_init_todo?}
+    MaybeTodo -->|yes| GenTodo["brain.generate_todo panorama0 instruction"]
+    GenTodo --> LoopHead
+    MaybeTodo -->|no 由首次 LA 生成| LoopHead[while not done]
+
+    LoopHead --> Pan["panorama = adapter.capture_panorama"]
+    Pan --> RecWP["memory.record_waypoint pose panorama"]
+    RecWP --> LA["la = brain.language_action instruction panorama memory"]
+    LA --> ParseLA{"la.mode"}
+
+    ParseLA -->|stop| Confirm{"adapter.confirm_stop la"}
+    Confirm -->|confirmed| StopAct["adapter.stop"]
+    Confirm -->|rejected| Feedback["memory.stop_feedback += rejected"]
+    Feedback --> FailCnt{"consecutive_stop_failures >= 3?"}
+    FailCnt -->|yes| StopAct
+    FailCnt -->|no| LoopHead
+    StopAct --> EQA{"task == EQA?"}
+    EQA -->|yes| Oracle["brain.query_oracle panorama instruction"]
+    EQA -->|no| Done[return EpisodeResult]
+    Oracle --> Done
+
+    ParseLA -->|backtrack| BTGoal["goal = adapter.backtrack_goal waypoint_id"]
+    BTGoal --> ExecBT["result = adapter.execute goal"]
+    ExecBT --> MemBT["memory.update la result"]
+    MemBT --> LoopHead
+
+    ParseLA -->|navigate| Face["adapter.face la.direction"]
+    Face --> TacView["view = adapter.capture_tactical_view"]
+    TacView --> VA["va = brain.vision_action view la instruction"]
+    VA --> ParseVA{"va.kind"}
+
+    ParseVA -->|stop 且无 bbox| StopAct
+    ParseVA -->|bbox| Ground["goal = adapter.ground va view"]
+    Ground --> Exec["result = adapter.execute goal"]
+    Exec --> MemUp["memory.update la va result"]
+    MemUp --> Timeout{"result.timeout or reached?"}
+    Timeout --> LoopHead
+      </pre>
+    </div>
+
+    <h3>每一步对应的数据结构</h3>
+    <div class="chart">
+      <div class="chart-caption">一次宏观步的数据流：观测进 Brain，决策出 Adapter</div>
+      <pre class="mermaid">
+flowchart LR
+    subgraph inObs ["输入 Observation"]
+      Inst[instruction]
+      Pano["panorama: List of TaggedView"]
+      Hist[history_images]
+      Todo[todo_list]
+      Pose[pose]
+    end
+
+    subgraph laOut ["StrategicDecision"]
+      Mode["mode: navigate / backtrack / stop"]
+      Dir["direction: forward left right behind"]
+      Extra["extras: stair / todo_updates / landmark"]
+    end
+
+    subgraph vaOut ["TacticalDecision"]
+      Kind["kind: bbox / stop"]
+      BBox["bbox_2d 0-1000"]
+      Target[target description]
+    end
+
+    subgraph goalOut ["Goal"]
+      KindG["kind: map_cell / robot_2d / backtrack"]
+      Payload[payload]
+    end
+
+    Inst --> LA2[brain.language_action]
+    Pano --> LA2
+    Hist --> LA2
+    Todo --> LA2
+    LA2 --> Mode
+    Mode --> Face2[adapter.face]
+    Face2 --> VA2[brain.vision_action]
+    VA2 --> Kind
+    Kind --> Ground2[adapter.ground]
+    Pose --> Ground2
+    Ground2 --> KindG
+    KindG --> Exec2[adapter.execute]
+      </pre>
+    </div>
+
+    <pre>@dataclass
+class StrategicDecision:
+    mode: Literal["navigate", "backtrack", "stop"]
+    direction: Optional[str]      # "forward" | "left" | "right" | "behind"
+    extras: dict                  # stair, todo_updates, expected_landmark
+
+@dataclass
+class TacticalDecision:
+    kind: Literal["bbox", "stop"]
+    bbox: Optional[Tuple[int,int,int,int]]
+    target_desc: str = ""
+
+@dataclass
+class Goal:
+    kind: Literal["map_cell", "robot_2d", "backtrack"]
+    payload: Any</pre>
+
+    <h2 id="adapter">5. EmbodimentAdapter 协议</h2>
+    <p>本体唯一需要实现的缝。Loop 不调用 Habitat / ROS / Unitree SDK 的任何 API。</p>
+    <pre>class EmbodimentAdapter(Protocol):
+    def reset(self, episode) -> Observation: ...
+    def capture_panorama(self) -> List[TaggedView]: ...
+    def face(self, direction) -> None: ...
+    def capture_tactical_view(self) -> RGBDFrame: ...
+    def ground(self, va: TacticalDecision, view: RGBDFrame) -> Goal: ...
+    def execute(self, goal: Goal) -> StepResult: ...
+    def stop(self) -> None: ...
+    def confirm_stop(self, la: StrategicDecision) -> bool: ...  # 可选，默认 True
+    def backtrack_goal(self, waypoint_id: int) -> Goal: ...     # 可选</pre>
+    <table>
+      <thead>
+        <tr><th>方法</th><th>HabitatSim</th><th>Go1 / G1</th><th>Cobot Magic</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>capture_panorama</code></td>
+          <td>12× TURN_LEFT，抽 4 向</td>
+          <td>多相机一次拍齐</td>
+          <td>双臂云台扫 8 槽</td>
+        </tr>
+        <tr>
+          <td><code>face</code></td>
+          <td>排队 3/6 次 30° 转</td>
+          <td>rotate 90° / 180°</td>
+          <td>8 向转角（45°×N）</td>
+        </tr>
+        <tr>
+          <td><code>ground</code></td>
+          <td><code>get_world_xz_from_pixel</code> → 地图格</td>
+          <td>深度反投影 → 机体系 (x, y)</td>
+          <td>深度反投影 → 导航像素 / 机体系</td>
+        </tr>
+        <tr>
+          <td><code>execute</code></td>
+          <td>FMM/NavDP 直到到达或 15 步超时，期间持续建图</td>
+          <td>iPlanner HTTP，截断 SAFE_DISTANCE 后跟轨迹</td>
+          <td>进程内 iPlanner + 连续 cmd_vel</td>
+        </tr>
+        <tr>
+          <td><code>confirm_stop</code></td>
+          <td>再扫全景 + <code>double_check_stop</code></td>
+          <td>有 bbox 则做最终接近，无 bbox 立即停</td>
+          <td>同地面真机，按任务实现</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 id="habitat">6. 现状详图：Habitat rollout</h2>
+    <p>
+      文件：<span class="path">sim-code/habitat/vlnce_baselines/ZS_Evaluator_mp.py</span>。
+      这是最完整的室内参考，统一 Loop 应以它为底本。外层 <code>while step &lt; max_step</code>，
+      高阶决策只在 <code>action_list</code> 为空时发生。
+    </p>
+    <div class="chart">
+      <div class="chart-caption">ZeroShotVlnEvaluatorMP.rollout — 四阶段导航周期</div>
+      <pre class="mermaid">
+flowchart TD
+    Init["_maps_initialization: reset env, instruction, Semantic_Mapping"] --> While["while step < max_step"]
+    While --> Analyze["ANALYZE: save RGB/depth, update pose, history_images"]
+    Analyze --> DoneQ{dones?}
+    DoneQ -->|yes| Metric["_calculate_metric SPL NDTW"]
+    DoneQ -->|no| EmptyQ{action_list empty?}
+
+    EmptyQ -->|no| Act["ACT: envs.step action_id"]
+    Act --> MapUp["mapping_module + collision_map"]
+    MapUp --> While
+
+    EmptyQ -->|yes| Timeout{"same target steps >= 15?"}
+    Timeout -->|yes| Reset1["pop waypoint, clear target, panorama_got=False"]
+    Reset1 --> Step1
+    Timeout -->|no| Reach{"dist to target < 0.75m?"}
+    Reach -->|yes| Reset2["clear target, back to Step1"]
+    Reset2 --> Step1
+    Reach -->|no| Branch{state}
+
+    Branch -->|"target is None and going_to_stop"| StopChk
+    Branch -->|"target is None and not navigate_or_not"| Step1
+    Branch -->|"panorama done, no queued turns"| Step2
+    Branch -->|"have target_map_xy"| Step3
+
+    StopChk["get_panorama 12 turns"] --> DCS["agent.double_check_stop"]
+    DCS -->|confirm| Stop0["action_list.append STOP=0"]
+    DCS -->|reject less than 3| FB["stop_feedback, re-enter Step1"]
+    DCS -->|reject >= 3| Stop0
+    Stop0 --> EQA2{EQA?}
+    EQA2 -->|yes| Oracle2["query_llm_oracle"]
+    FB --> While
+
+    Step1["STEP1 get_panorama 12 turns"] --> Rec["append visited_targets waypoint"]
+    Rec --> LAH["agent.navigate_or_backtrack"]
+    LAH --> LAAct{decision.action}
+
+    LAAct -->|STOP| FlagStop["going_to_stop=True"]
+    FlagStop --> While
+    LAAct -->|BACKTRACK| BT{"backtrack_second_chance?"}
+    BT -->|yes| Replan["replan_at_backtrack + VA bbox at old waypoint"]
+    BT -->|no| BTOnly["target = old waypoint world_coords"]
+    Replan --> Step3
+    BTOnly --> Step3
+    LAAct -->|NAVIGATE| QueueTurn["queue 3 or 6 TURN_LEFT/RIGHT"]
+    QueueTurn --> NavFlag["navigate_or_not=True, panorama_got=True"]
+    NavFlag --> While
+
+    Step2["STEP2 agent.query_llm VA"] --> BBox["parse bbox_2d 0-1000"]
+    BBox --> Unproj["get_world_xz_from_pixel -> target_map_x y"]
+    Unproj --> Step3
+
+    Step3["STEP3 FusionMapPolicy._get_action or NavDP"] --> Push["push MOVE_FORWARD / TURN into action_list"]
+    Push --> While
+      </pre>
+    </div>
+
+    <h3>Habitat 推理层：VLMReasoningAgent</h3>
+    <p>文件：<span class="path">sim-code/habitat/vlnce_baselines/agent.py</span>。不调用 Habitat env，只吃 numpy 图和 waypoint 字典。</p>
+    <div class="chart">
+      <div class="chart-caption">VLMReasoningAgent 方法与模型分工</div>
+      <pre class="mermaid">
+flowchart LR
+    subgraph laModel ["LA 模型 Gemini 等"]
+      Todo[generate_todo_list]
+      Nav[navigate_or_backtrack]
+      DCheck[double_check_stop]
+      Replan[replan_at_backtrack]
+      Oracle[query_llm_oracle]
+    end
+    subgraph vaModel ["VA 模型 Qwen 等"]
+      Query[query_llm bbox]
+    end
+    API[LaViRA_API]
+    Todo --> API
+    Nav --> API
+    DCheck --> API
+    Replan --> API
+    Oracle --> API
+    Query --> API
+      </pre>
+    </div>
+
+    <h2 id="go1">7. 现状详图：Go1 VLNTask.run</h2>
+    <p>
+      文件：<span class="path">real-world-code/unitree_go1/tasks/vln.py</span>。
+      比 Habitat 更线性：没有建图、没有 15 步超时、没有 STOP 二次确认。
+      G1 / Cobot 是这条线的变体。
+    </p>
+    <div class="chart">
+      <div class="chart-caption">Go1 VLNTask.run — 一次宏观步</div>
+      <pre class="mermaid">
+flowchart TD
+    StartG[while robot.running] --> Cap["robot.capture_all_directions"]
+    Cap --> Frames["_get_panorama_frames: front right left"]
+    Frames --> InitTodo{"step==1 and no todo?"}
+    InitTodo -->|yes| Placeholder["todo = Please generate one"]
+    InitTodo -->|no| LAG
+    Placeholder --> LAG["nav_api.language_action"]
+    LAG --> UpTodo["update todo_list"]
+    UpTodo --> StratStop{"action == STOP?"}
+    StratStop --> Rot{"turn_direction"}
+    Rot -->|left| RL["rotate_left 90"]
+    Rot -->|right| RR["rotate_right 90"]
+    Rot -->|front| Cap2
+    RL --> Cap2
+    RR --> Cap2
+    Cap2["capture_current_image + sleep 0.5 stabilize"] --> VAG["nav_api.vision_action bbox"]
+    VAG --> Merge{"strategic_stop or VA STOP?"}
+
+    Merge -->|"STOP with bbox"| Final["final approach then stop"]
+    Merge -->|"STOP without bbox"| Halt[break]
+    Merge -->|NAVIGATE| UnprojG
+
+    Final --> UnprojG["bbox bottom 25% + depth -> goal_2d robot frame"]
+    UnprojG --> Plan["iPlanner.get_plan rgb depth goal_2d"]
+    Plan --> Trunc{"path length vs SAFE_DISTANCE 1.5m"}
+    Trunc -->|too close| NoMove[skip execute]
+    Trunc -->|ok| Cut["truncate traj, execute_trajectory"]
+    Cut --> After{"strategic_stop?"}
+    After -->|yes| Halt
+    After -->|no| StepInc["current_step += 1"]
+    StepInc --> StartG
+      </pre>
+    </div>
+
+    <h4>三台地面真机差异（同一 Indoor 循环）</h4>
+    <table>
+      <thead>
+        <tr><th></th><th>Go1</th><th>G1</th><th>Cobot</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>LA 视角</td><td>3 向，无 behind</td><td>4 向含 behind</td><td>8 槽云台</td></tr>
+        <tr><td>STOP 字段</td><td><code>action: STOP</code></td><td><code>stop: bool</code></td><td>方向决策里的 STOP</td></tr>
+        <tr><td>bbox 锚点</td><td>底边向上 25%</td><td>底边中心</td><td>底边中心</td></tr>
+        <tr><td>规划器</td><td>iPlanner HTTP</td><td>iPlanner HTTP</td><td>进程内 iPlanner + cmd_vel</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="mapping">8. 四端如何接到统一 Loop</h2>
+    <div class="chart">
+      <div class="chart-caption">现有函数如何映射到 Adapter 方法</div>
+      <pre class="mermaid">
+flowchart TB
+    subgraph loop2 ["lavira.loop.LaviraAgentLoop"]
+      L1[capture_panorama]
+      L2[language_action]
+      L3[face]
+      L4[vision_action]
+      L5[ground]
+      L6[execute]
+    end
+
+    L1 --> H1["Habitat: get_panorama"]
+    L1 --> G1p["Go1/G1: capture_all_directions"]
+    L1 --> C1["Cobot: collect_panoramic_images"]
+
+    L2 --> H2["agent.navigate_or_backtrack"]
+    L2 --> G2["LaViRANavigationAPI.language_action"]
+    L2 --> C2["decide_direction"]
+
+    L5 --> H5["get_world_xz_from_pixel"]
+    L5 --> G5["depth unproject robot frame"]
+    L5 --> C5["bbox to nav_u nav_v"]
+
+    L6 --> H6["FMM _get_action + envs.step"]
+    L6 --> G6["iPlanner HTTP + execute_trajectory"]
+    L6 --> C6["in-process iPlanner + cmd_vel"]
+      </pre>
+    </div>
+
+    <h3>接入后各端入口怎么变</h3>
+    <pre># Habitat 评测入口仍是 run_mp.py，内部变成：
+agent = LaviraAgentLoop(brain, HabitatAdapter(envs, mapping, policy))
+agent.run_episode(instruction)
+
+# Go1 / G1
+agent = LaviraAgentLoop(brain, Go1Adapter(robot))
+agent.run_episode(instruction)
+
+# Cobot Magic
+agent = LaviraAgentLoop(brain, CobotAdapter(robot))
+agent.run_episode(instruction)</pre>
+
+    <h2 id="extract">9. 抽什么 / 不抽什么</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h4>抽进 lavira/</h4>
+        <ul>
+          <li>双模型客户端，沿用 <code>LA_*</code> / <code>VA_*</code></li>
+          <li>Prompt 注册表：以 Habitat <span class="path">vlnce_baselines/prompts/</span> 为底本</li>
+          <li>TODO / 历史图 / visited waypoint</li>
+          <li>JSON 解析与重试</li>
+          <li>宏观 Loop</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4>故意不抽</h4>
+        <ul>
+          <li>建图、分割、FMM、NavDP、iPlanner</li>
+          <li>数据集、episode loader、指标</li>
+          <li>ROS / Unitree SDK / 云台 / Web</li>
+          <li>各端 conda / Docker 环境</li>
+          <li>第一期不改 prompt 语义和评测协议</li>
+          <li>AirSim 与无人机真机（后续再挂）</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 id="migrate">10. 迁移顺序</h2>
+    <div class="chart">
+      <div class="chart-caption">接口按地面室内四端设计，切流分四步，避免评测漂移</div>
+      <pre class="mermaid">
+flowchart LR
+    P1["1. extract lavira package + shared client"] --> P2["2. Habitat Loop + HabitatAdapter"]
+    P2 --> P3["3. Go1 Adapter"]
+    P3 --> P4["4. G1 then Cobot"]
+      </pre>
+    </div>
+    <ol>
+      <li><strong>共享 client</strong>：Habitat / Go1 / G1 / Cobot 旧 <code>LaViRA_API</code> / <code>LaViRAVisionClient</code> 先换成同一实现，循环先不动。</li>
+      <li><strong>Habitat 先接 Loop</strong>：以 <code>VLMReasoningAgent</code> + <code>rollout</code> 为底本，验证 Indoor 最完整路径（backtrack、STOP 二次确认、EQA、楼梯）。</li>
+      <li><strong>Go1</strong>：最接近 Habitat 的真机线性循环，adapter 主要实现全景、转向、bbox 反投影和 iPlanner 执行。</li>
+      <li><strong>G1 → Cobot</strong>：同一 Indoor 循环的变体，差在视角数、STOP 字段和执行器。</li>
+    </ol>
+    <div class="note">
+      每接一端的验收：原有评测/部署入口还能跑；Habitat 指标不因抽包而漂。
+      先抽包、不改策略，避免把重构和调参混在一起。
+    </div>
+
+    <h3>明确不做</h3>
+    <ul>
+      <li>不合并各平台 conda / Docker</li>
+      <li>不把建图或规划器做成统一导航栈</li>
+      <li>第一期不改 LA/VA 模型、prompt 语义或评测协议</li>
+      <li>第一期不接入 AirSim 与无人机真机</li>
+    </ul>
+
+    <footer>
+      Uni-LaViRA 仓库内部方案文档 · 第一期仅 HabitatSim + Go1 / G1 / Cobot ·
+      源文件 <span class="path">docs/unified-lavira-agent.html</span>
+    </footer>
+  </main>
+</div>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: "neutral",
+    securityLevel: "loose",
+    flowchart: { curve: "basis", htmlLabels: true }
+  });
+</script>
+</body>
+</html>
