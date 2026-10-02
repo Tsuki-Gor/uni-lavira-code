@@ -60,7 +60,38 @@ Cobot 使用 `GimbalRobotRuntime` 处理全景采集、机械臂复位等待和�
 
 旧 Habitat 入口使用 `profile="habitat"` 和 `Task.max_steps`，预算按仿真动作计数。机器人使用 `max_cycles`；不能用 `max_steps` 代替它。Habitat 每次全景采集按原规则计入 12 步，可能越过预算后才在下一轮退出。EQA 未提交答案但已有航点全景时，会按原流程补答；`answer_from_history=False` 用于已有评测结果、不应再次触发补答的情况。
 
-`MappedSimulatorRuntime` 接收外部准备好的观测、位姿以及提供建图、局部规划、传感器和记录能力的 host。当前兼容 host 仍由 Habitat 评测器提供，其初始化依赖拆分尚在进行。核心不负责创建或 reset 该 host。
+`MappedSimulatorRuntime` 接收外部准备好的观测、位姿以及提供建图、局部规划、传感器和记录能力的 host。`vlnce_baselines.habitat_environment.HabitatEnvironment` 提供现有 Habitat 能力，不创建或导入 LaViRA 客户端；旧评测器继承它并组装共享算法。核心不负责创建或 reset 该 host。
+
+在已有 Habitat 环境中，将 `sim-code/habitat` 加入 Python 导入路径，使用现有 Habitat `config` 可以独立准备运行时。下面的 `algorithm` 是外部系统已选定、接受运行时的算法对象；这些初始化方法沿用原评测器，仍需要现有仿真数据、分割/建图依赖和所选局部控制器。
+
+```python
+import torch
+from habitat.sims.habitat_simulator.actions import HabitatSimActions
+from vlnce_baselines.habitat_environment import HabitatEnvironment
+from vlnce_baselines.utils.depth_utils import get_world_xz_from_pixel
+from vlnce_baselines.utils.map_utils import calculate_displacement, collision_check_fmm
+from navigation_runtime.mapped_simulator import MappedSimulatorRuntime
+
+host = HabitatEnvironment(config, r2r=True)
+host.initialize_controllers()
+host._init_envs()
+try:
+    host._collect_val_traj()
+    host._initialize_policy()
+    if host.use_navdp:
+        host.navdp_agent.reset_env(0)
+    observations, pose = host._maps_initialization()  # 此处由外部 reset 环境。
+    runtime = MappedSimulatorRuntime(
+        host, observations, pose, tensor_api=torch, actions=HabitatSimActions,
+        project_pixel=get_world_xz_from_pixel,
+        displacement=calculate_displacement, collision_check=collision_check_fmm,
+    )
+    result = algorithm.run(runtime)
+finally:
+    host.envs.close()
+```
+
+跨 episode 使用时，外部调用 `host.reset()` 清理地图与控制状态，再按原流程准备下一次观测。它不重置算法；算法自己的任务状态由算法管理。`r2r` 和 `config.TASK_TYPE` 继续使用原数据集配置。
 
 运行时通过 `observe_panorama`、`project`、`queue_navigation`、`execute_pending` 提供采集、像素投影、规划与单步执行；另一种算法可直接调用这些能力。`MapGoal` 的 x/y 是地图格坐标，`metres_per_cell` 是米/格，`reference_frame` 标明本次地图。与地图不匹配的目标会被拒绝。历史像素目标使用 `Frame` 携带的 RGB、深度、内参、基准位姿和 `pose_heading_offset`，不会换用当前位置的 RGB 或深度。
 

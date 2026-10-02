@@ -26,6 +26,8 @@ def rollout_methods(original, namespace):
               if original else (ROOT / EVALUATOR).read_text())
     tree = ast.parse(source)
     if not original:
+        host = ROOT / "sim-code/habitat/vlnce_baselines/habitat_environment.py"
+        tree.body.extend(ast.parse(host.read_text()).body)
         from lavira.agent import LaViRAAgent
         from lavira.runtime import Task
         from navigation_runtime.mapped_simulator import MappedSimulatorRuntime
