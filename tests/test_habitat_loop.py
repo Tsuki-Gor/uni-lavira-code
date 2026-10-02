@@ -55,7 +55,7 @@ class HabitatLoopTest(unittest.TestCase):
             for task in ("VLN", "OBJNAV", "EQA"):
                 cases = ("normal", "left", "right", "behind", "stop", "reject_stop",
                          "backtrack_only", "backtrack_replan", "backtrack_alias_pose", "timeout", "budget",
-                         "panorama_done", "environment_done", "navdp", "no_history",
+                         "panorama_done", "environment_done", "navdp", "navdp_cache", "no_history",
                          "invalid_backtrack", "blocked_projection", "zero_budget", "negative_budget")
                 if task == "EQA":
                     cases += ("qa_failure", "already_scored")
@@ -140,7 +140,8 @@ class HabitatLoopTest(unittest.TestCase):
                     self.pose[2] = (self.pose[2] - 30) % 360
                 elif action == 1 and case != "timeout":
                     angle = np.deg2rad(self.pose[2])
-                    self.pose[:2] += [np.cos(angle), np.sin(angle)]
+                    distance = .1 if case == "navdp_cache" else 1.
+                    self.pose[:2] += distance * np.array([np.cos(angle), np.sin(angle)])
                 done = ((action == 0 and task_type != "EQA") or
                         (case == "panorama_done" and self.count == 3) or
                         (case == "environment_done" and self.count == 14))
@@ -245,7 +246,8 @@ class HabitatLoopTest(unittest.TestCase):
         host = types.SimpleNamespace(
             envs=env, agent=Reasoning(), mapping_module=Mapping(), policy=types.SimpleNamespace(_get_action=plan),
             navdp_agent=types.SimpleNamespace(reset_env=lambda n: trace.append(("navdp_reset",)), step_pointgoal=navdp),
-            task_type=task_type, use_fmm=case != "navdp", use_navdp=case == "navdp", use_iplanner=False,
+            task_type=task_type, use_fmm=not case.startswith("navdp"),
+            use_navdp=case.startswith("navdp"), use_iplanner=False,
             instruction="find the chair", destination="goal", current_episode_id="ep", current_step=0,
             width=16, height=12, resolution=5, map_shape=(160, 160), target_reached_threshold=15,
             use_continuous_history=case != "no_history", history_interval=2, history_images=[], visited_targets=[],

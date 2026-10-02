@@ -649,9 +649,9 @@ class MappedSimulatorRuntime:
                 depth_img = depth_meters
                 # NavDP Frequency Control
                 # Initialize variables if not present
-                if not hasattr(self, 'last_navdp_step'):
+                if not hasattr(self.host, 'last_navdp_step'):
                     self.host.last_navdp_step = -999
-                if not hasattr(self, 'navdp_local_traj'):
+                if not hasattr(self.host, 'navdp_local_traj'):
                     self.host.navdp_local_traj = None
 
                 # Execute NavDP planning every 5 steps or if no trajectory exists
