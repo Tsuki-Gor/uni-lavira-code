@@ -109,9 +109,11 @@ class LaViRAAgent:
                     "target": target_text, "description": "Turned {} toward {}".format(direction, target_text)})
                 angles, stop = COBOT_ANGLES, False
             else:
+                if task.reuse_runtime_history:
+                    state.trajectory_images = list(panorama.history)
                 decision = self.reasoning.language_action(
                     instruction=task.instruction, global_target=task.instruction,
-                    todo_list=state.todo_list, iplanner_history=panorama.history,
+                    todo_list=state.todo_list, iplanner_history=state.trajectory_images,
                     panorama_frames=frames, current_step=state.step)
                 if decision.get("updated_todo_list"):
                     state.todo_list = decision["updated_todo_list"]
@@ -179,7 +181,10 @@ class LaViRAAgent:
                     v = min(int(y2), height - 1)
                 goal = PixelGoal(view, u, v, fallback=goal)
             progress("executing")
-            report = runtime.navigate(goal, state.step)
+            record_options = {}
+            if not cobot and not task.reuse_runtime_history:
+                record_options["on_trajectory_image"] = state.trajectory_images.append
+            report = runtime.navigate(goal, state.step, **record_options)
             if cobot:
                 if report.arrived:
                     state.todo_list = mark_first_incomplete_task_completed(state.todo_list)
@@ -215,6 +220,8 @@ class LaViRAAgent:
             answer, answer_error = answer_question(
                 self.reasoning.client, self.profile, task.instruction, runtime.observe_views())
         progress("finished")
+        # Late Go1 worker callbacks retain the old list, not the returned result.
+        state.trajectory_images = list(state.trajectory_images)
         return TaskResult(reason, state, cancellation.is_set(), report,
                           answer=answer, answer_error=answer_error)
 

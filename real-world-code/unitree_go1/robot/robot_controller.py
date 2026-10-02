@@ -479,7 +479,8 @@ class RobotController:
         self.cmd.yawSpeed = 0
         self.udp.SetSend(self.cmd)
 
-    def project_trajectory_to_image(self, trajectory_points, img_bgr, save_name="planned_path.png", target_pixel=None, target_3d=None):
+    def project_trajectory_to_image(self, trajectory_points, img_bgr, save_name="planned_path.png",
+                                    target_pixel=None, target_3d=None, on_trajectory_image=None):
         """
         Project 3D trajectory points back to a 2D image and save it.
 
@@ -488,6 +489,7 @@ class RobotController:
         :param save_name: Filename to save.
         :param target_pixel: tuple (u, v) selected 2D pixel coordinates (optional).
         :param target_3d: tuple (x, y, z) calculated 3D coordinates (optional).
+        :param on_trajectory_image: Optional callback receiving each recorded image path.
         """
         import cv2
 
@@ -568,8 +570,10 @@ class RobotController:
 
         # Append to history.
         self.iplanner_history.append(save_path)
+        if on_trajectory_image is not None:
+            on_trajectory_image(save_path)
 
-    def execute_trajectory(self, trajectory_points, goal_local=None):
+    def execute_trajectory(self, trajectory_points, goal_local=None, on_trajectory_image=None):
         import numpy as np
 
         if trajectory_points is None or len(trajectory_points) < 2:
@@ -627,7 +631,9 @@ class RobotController:
 
                     timestamp = datetime.now().strftime("%H%M%S_%f")
                     save_name = f"replan_{timestamp}.jpg"
-                    self.project_trajectory_to_image(traj, rgb, save_name=save_name, target_pixel=target_pixel_now, target_3d=(goal[0], goal[1], 0.0))
+                    self.project_trajectory_to_image(
+                        traj, rgb, save_name=save_name, target_pixel=target_pixel_now,
+                        target_3d=(goal[0], goal[1], 0.0), on_trajectory_image=on_trajectory_image)
                 except Exception as vis_e:
                     print_warning(f"Visualization failed: {vis_e}")
 

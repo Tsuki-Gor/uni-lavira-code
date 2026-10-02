@@ -71,7 +71,7 @@ class GimbalRobotRuntime:
         return Frame(image=rgb, depth=depth, depth_unit="m",
                      width=self.robot.rgb_width, height=self.robot.rgb_height)
 
-    def navigate(self, goal, step):
+    def navigate(self, goal, step, on_trajectory_image=None):
         if not isinstance(goal, PixelGoal):
             raise TypeError("gimbal navigation requires a PixelGoal")
         arrived = self.robot.navigate_dynamic(goal.u, goal.v, cycle_dir=self.cycle_dir)

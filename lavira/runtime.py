@@ -14,6 +14,7 @@ class Task:
     max_steps: Optional[int] = None
     answer_from_history: bool = True
     id: Optional[str] = None
+    reuse_runtime_history: bool = False  # Go1/G1 legacy entrypoints opt in.
 
 
 @dataclass
@@ -25,6 +26,7 @@ class TaskState:
     history_images: List[dict] = field(default_factory=list)
     total_waypoints: int = 0
     total_backtracks: int = 0
+    trajectory_images: List[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

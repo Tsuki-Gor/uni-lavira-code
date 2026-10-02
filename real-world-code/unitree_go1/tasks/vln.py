@@ -42,7 +42,7 @@ class VLNTask:
         self.is_task_running = True
         self._cancellation.clear()
         try:
-            self.result = self.agent.run(Task(self.instruction, self.task_kind), self.runtime,
+            self.result = self.agent.run(Task(self.instruction, self.task_kind, reuse_runtime_history=True), self.runtime,
                                          cancellation=self._cancellation)
         finally:
             self.current_step = self.agent.state.step

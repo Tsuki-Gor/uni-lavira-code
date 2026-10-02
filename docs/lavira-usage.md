@@ -42,6 +42,8 @@ print(result.reason, result.cancellation_requested, result.last_execution)
 
 `max_cycles` 默认不额外限制 Go1/G1 的循环次数，符合原入口；外部可在 `Task` 中明确设置非负预算。每次直接调用 `agent.run` 创建新的任务状态。外部仍负责保护运行时，避免多个任务同时控制同一个机器人。
 
+Go1/G1 的新调用默认只使用本次任务生成的轨迹图片，保存在 `result.state.trajectory_images`。核心向 `navigate` 传入 `on_trajectory_image` 回调，执行器每生成一张轨迹图就回传路径；自定义执行器也需调用它，才能参与视觉记忆。Go1 的异步重规划沿用所属执行调用的回调，迟到图片不会进入另一个任务；返回的结果保存任务结束时的路径列表快照。执行记录文件仍由外部保存，不会因任务结束而删除。Go1/G1 旧任务入口显式设置 `Task(..., reuse_runtime_history=True)`，继续读取 `Panorama.history` 中跨任务累积的旧历史，保持原请求行为；新调用只有明确需要兼容时才启用该选项。
+
 问答任务使用 `Task("椅子是什么颜色？", kind="eqa")`。导航按原规则结束后，核心调用运行时的 `observe_views()` 取得最终视图，向 LA 提问；`result.answer` 保存原解析得到的答案，`result.answer_error` 记录问答模型或解析异常。`reason` 仍描述导航结束原因，因此取消请求和答案可以同时存在，这是旧流程的行为。采图或导航本身抛出的异常仍按原路径传播。
 
 Go1 的 `live_cameras` 保留前、右、左相机顺序；G1 不传该参数，刷新前相机。Cobot 在图像锁内取前、左、右的原有帧引用。问答不新增全景转动。核心不保存答案文件；Go1/G1 旧入口仍保存 `final_eqa_result.json`，外部 Agent 可自行处理结果。
@@ -51,6 +53,8 @@ Go1 的 `live_cameras` 保留前、右、左相机顺序；G1 不传该参数，
 `navigation_runtime` 不导入 LaViRA。其他算法可以取得 `Frame`、调用 `turn`，或者发出 `RelativeGoal(x, y)` / `PixelGoal(view, u, v, fallback)`。局部位置以米为单位，x 向前、y 向左；转角以度为单位，正值向左。像素目标的 fallback 必须由调用者明确提供。
 
 `CameraRobotRuntime` 保留原控制器执行时读取实时深度的做法。`PixelGoal.view` 标识目标来自哪帧，但当前兼容执行尚不保证用该帧深度投影。不能把它描述成已经解决传感器同步问题。
+
+Go1/G1 的观测保留原始毫米深度，`Frame.depth_unit="mm"`；Cobot 的采集回调已转换成米，标为 `"m"`。适配器填写已有数组视图的尺寸，仅有文件路径的全景不额外读取图像以补尺寸。
 
 `ExecutionReport.execution_called` 只表示调用了轨迹执行函数；`arrived=None` 表示缺少到达证据。模型停止、导航成功和物理停止分别判断，不能相互推导。
 

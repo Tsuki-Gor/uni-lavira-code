@@ -1180,7 +1180,7 @@ class RobotController:
     # Trajectory Execution
     # =========================================================================
 
-    def execute_trajectory(self, trajectory_points, goal_local=None):
+    def execute_trajectory(self, trajectory_points, goal_local=None, on_trajectory_image=None):
         """Execute a planned trajectory using pure pursuit with continuous
         re-planning.
 
@@ -1196,6 +1196,7 @@ class RobotController:
                 robot frame.
             goal_local: Optional ``(x, y)`` goal override for the termination
                 check.
+            on_trajectory_image: Optional callback receiving each recorded image path.
         """
         if trajectory_points is None or len(trajectory_points) < 2:
             print_warning("Trajectory too short to execute")
@@ -1375,6 +1376,7 @@ class RobotController:
                                 save_name=save_name,
                                 target_pixel=target_pixel_viz,
                                 target_3d=target_3d_viz,
+                                on_trajectory_image=on_trajectory_image,
                             )
                             # print_info(f"Re-planned trajectory with {len(path)} points")
                     except Exception as e:
@@ -1476,6 +1478,7 @@ class RobotController:
         save_name="planned_path.png",
         target_pixel=None,
         target_3d=None,
+        on_trajectory_image=None,
     ):
         """Project 3D trajectory points back to the 2D image and save it.
 
@@ -1559,6 +1562,8 @@ class RobotController:
         save_path = os.path.join(Config.IPLANNER_DIR, save_name)
         cv2.imwrite(save_path, vis_img)
         self.iplanner_history.append(save_path)
+        if on_trajectory_image is not None:
+            on_trajectory_image(save_path)
 
     # =========================================================================
     # Cleanup

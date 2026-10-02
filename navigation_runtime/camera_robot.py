@@ -72,7 +72,8 @@ class CameraRobotRuntime:
             height, width = image.shape[:2] if image is not None else (None, None)
             yield name, Frame(image=image, width=width, height=height)
 
-    def navigate(self, goal, step):
+    def navigate(self, goal, step, on_trajectory_image=None):
+        record_options = {} if on_trajectory_image is None else {"on_trajectory_image": on_trajectory_image}
         target_pixel = None
         if isinstance(goal, PixelGoal):
             target_pixel = (goal.u, goal.v)
@@ -100,7 +101,7 @@ class CameraRobotRuntime:
             name = "step{}_plan_{}.jpg".format(step, time.strftime("%H%M%S"))
             self.robot.project_trajectory_to_image(
                 trajectory, rgb, save_name=name, target_pixel=target_pixel,
-                target_3d=(goal_2d[0], goal_2d[1], 0.0))
+                target_3d=(goal_2d[0], goal_2d[1], 0.0), **record_options)
         if trajectory is None or len(trajectory) == 0:
             return ExecutionReport(detail="planner_failed")
 
@@ -120,11 +121,11 @@ class CameraRobotRuntime:
             truncated = trajectory[:cutoff + 1]
             if len(truncated) > 0:
                 final = truncated[-1]
-                self.robot.execute_trajectory(truncated, goal_local=(final[0], final[1]))
+                self.robot.execute_trajectory(truncated, goal_local=(final[0], final[1]), **record_options)
             else:
-                self.robot.execute_trajectory(trajectory, goal_local=goal_2d)
+                self.robot.execute_trajectory(trajectory, goal_local=goal_2d, **record_options)
         except Exception:
             # Existing fallback includes execution exceptions; changing this
             # possible replay requires a separate behavioral decision.
-            self.robot.execute_trajectory(trajectory, goal_local=goal_2d)
+            self.robot.execute_trajectory(trajectory, goal_local=goal_2d, **record_options)
         return ExecutionReport(execution_called=True)

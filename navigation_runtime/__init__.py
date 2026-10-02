@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from math import isfinite
-from typing import Any, Dict, Iterator, Optional, Protocol, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, Iterator, Optional, Protocol, Sequence, Tuple, Union
 
 
 @dataclass(frozen=True)
@@ -94,4 +94,5 @@ class NavigationRuntime(Protocol):
 
     def finish_observation(self) -> None: ...
 
-    def navigate(self, goal: Union[PixelGoal, RelativeGoal], step: int) -> ExecutionReport: ...
+    def navigate(self, goal: Union[PixelGoal, RelativeGoal], step: int,
+                 on_trajectory_image: Optional[Callable[[str], None]] = None) -> ExecutionReport: ...
