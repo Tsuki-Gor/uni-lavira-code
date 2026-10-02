@@ -53,7 +53,9 @@ class CameraRobotRuntime:
             # Preserve the old second capture, including its unchecked return.
             self.robot.capture_current_image()
         data = self.robot.direction_images[self.robot.current_direction]
-        return Frame(image=data["rgb"], depth=data["depth"])
+        height, width = data["rgb"].shape[:2]
+        return Frame(image=data["rgb"], depth=data["depth"], depth_unit="mm",
+                     width=width, height=height)
 
     def finish_observation(self):
         """This camera runtime has no pending scan operation."""
@@ -61,11 +63,14 @@ class CameraRobotRuntime:
     def observe_views(self):
         """Read fixed camera views in host-specified order without rotating."""
         if self.live_cameras:
-            for name, camera in self.live_cameras:
-                yield name, Frame(image=self.robot.camera_data[camera]["rgb_image"])
+            frames = ((name, self.robot.camera_data[camera]["rgb_image"])
+                      for name, camera in self.live_cameras)
         else:
             self.robot.update_camera_data()
-            yield "front", Frame(image=self.robot.rgb_image)
+            frames = (("front", self.robot.rgb_image),)
+        for name, image in frames:
+            height, width = image.shape[:2] if image is not None else (None, None)
+            yield name, Frame(image=image, width=width, height=height)
 
     def navigate(self, goal, step):
         target_pixel = None

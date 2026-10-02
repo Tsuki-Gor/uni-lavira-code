@@ -39,7 +39,8 @@ class GimbalRobotRuntime:
                 if index < len(names):
                     depth = depths[index] if index < len(depths) else None
                     views[names[index]] = Frame(image=image, path=path, depth=depth,
-                                               heading_degrees=headings[index])
+                                               heading_degrees=headings[index], depth_unit="m",
+                                               width=image.shape[1], height=image.shape[0])
         return Panorama(views, record_dir=self.cycle_dir)
 
     def turn(self, degrees):
@@ -67,7 +68,8 @@ class GimbalRobotRuntime:
         if rgb is None:
             return None
         cv2.imwrite(os.path.join(self.cycle_dir, "raw_rgb.jpg"), rgb)
-        return Frame(image=rgb, depth=depth, width=self.robot.rgb_width, height=self.robot.rgb_height)
+        return Frame(image=rgb, depth=depth, depth_unit="m",
+                     width=self.robot.rgb_width, height=self.robot.rgb_height)
 
     def navigate(self, goal, step):
         if not isinstance(goal, PixelGoal):
@@ -81,4 +83,5 @@ class GimbalRobotRuntime:
             frames = [(name, getattr(self.robot, "current_" + name + "_rgb", None))
                       for name in ("front", "left", "right")]
         for name, image in frames:
-            yield name, Frame(image=image)
+            height, width = image.shape[:2] if image is not None else (None, None)
+            yield name, Frame(image=image, width=width, height=height)
